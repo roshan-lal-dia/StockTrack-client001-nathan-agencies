@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Moon, Sun, Monitor, Shield, Keyboard, Database, LogOut, Edit2, Check, X, Lock } from 'lucide-react';
+import { Moon, Sun, Monitor, Shield, Keyboard, Database, LogOut, Edit2, Check, X, Lock, Download, Smartphone, CheckCircle } from 'lucide-react';
 import { useThemeStore } from '@/store/useThemeStore';
 import { useStore } from '@/store/useStore';
 import { toast } from '@/store/useToastStore';
 import { auth, db } from '@/lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ChangePinModal } from './PinVerification';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 
 export const Settings = () => {
   const { theme, setTheme } = useThemeStore();
@@ -14,8 +15,17 @@ export const Settings = () => {
   const [newName, setNewName] = useState(userProfile?.name || '');
   const [signingOut, setSigningOut] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
+  
+  const { isInstallable, isInstalled, isInstalling, promptInstall } = usePWAInstall();
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+
+  const handleInstallApp = async () => {
+    const success = await promptInstall();
+    if (success) {
+      toast.success('App installed successfully!');
+    }
+  };
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
@@ -294,6 +304,72 @@ export const Settings = () => {
           </div>
         </div>
       )}
+
+      {/* Install App */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+            <Smartphone size={20} className="text-indigo-500" />
+            Install App
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Install StockTrack as an app on your device
+          </p>
+        </div>
+        <div className="p-6">
+          {isInstalled ? (
+            <div className="flex items-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
+              <CheckCircle size={24} className="text-emerald-600 dark:text-emerald-400" />
+              <div>
+                <p className="font-medium text-emerald-800 dark:text-emerald-300">App Installed</p>
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                  StockTrack is installed on your device
+                </p>
+              </div>
+            </div>
+          ) : isInstallable ? (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Install StockTrack Pro for quick access, offline support, and a native app experience.
+              </p>
+              <button
+                onClick={handleInstallApp}
+                disabled={isInstalling}
+                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isInstalling ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Download size={18} />
+                    Install App
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                To install the app:
+              </p>
+              <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-indigo-500 font-bold">•</span>
+                  <span><strong>Chrome/Edge:</strong> Click the install icon in the address bar</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-indigo-500 font-bold">•</span>
+                  <span><strong>Safari (iOS):</strong> Tap Share → "Add to Home Screen"</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-indigo-500 font-bold">•</span>
+                  <span><strong>Android:</strong> Tap the menu → "Install app"</span>
+                </li>
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Data & Storage */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
