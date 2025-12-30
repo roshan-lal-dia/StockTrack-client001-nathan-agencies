@@ -1,104 +1,84 @@
-import { useState, useEffect } from 'react';
-
-interface BeforeInstallPromptEvent extends Event {
-  readonly platforms: string[];
-  readonly userChoice: Promise<{
-    outcome: 'accepted' | 'dismissed';
-    platform: string;
-  }>;
-  prompt(): Promise<void>;
-}
-
-declare global {
-  interface WindowEventMap {
-    beforeinstallprompt: BeforeInstallPromptEvent;
-  }
-}
+import { useState, useEffect, useCallback } from 'react';
+import { 
+  getDeferredPrompt, 
+  subscribeToPrompt, 
+  triggerInstallPrompt, 
+  getPlatformInfo,
+  getInstallInstructions 
+} from '@/lib/pwaInstall';
 
 export const usePWAInstall = () => {
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [hasPrompt, setHasPrompt] = useState(() => !!getDeferredPrompt());
+  const [isInstalled, setIsInstalled] = useState(() => getPlatformInfo().isInstalled);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [platformInfo] = useState(() => getPlatformInfo());
+  const [instructions] = useState(() => getInstallInstructions());
 
   useEffect(() => {
-    // Check if already installed
-    const checkInstalled = () => {
-      // Check if running in standalone mode (installed PWA)
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-      // iOS Safari check
-      const isIOSInstalled = (navigator as any).standalone === true;
-      setIsInstalled(isStandalone || isIOSInstalled);
-    };
+    // Subscribe to prompt availability changes
+    const unsubscribe = subscribeToPrompt((prompt) => {
+      setHasPrompt(!!prompt);
+      if (!prompt) {
+        // Check if installed after prompt is cleared
+        setIsInstalled(getPlatformInfo().isInstalled);
+      }
+    });
 
-    checkInstalled();
-
-    // Listen for the beforeinstallprompt event
-    const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
-      // Prevent the mini-infobar from appearing on mobile
-      e.preventDefault();
-      // Save the event so it can be triggered later
-      setInstallPrompt(e);
-      console.log('PWA install prompt saved');
-    };
-
-    // Listen for app installed event
-    const handleAppInstalled = () => {
-      console.log('PWA was installed');
-      setIsInstalled(true);
-      setInstallPrompt(null);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
-
-    // Also check display mode changes
+    // Listen for display mode changes
     const mediaQuery = window.matchMedia('(display-mode: standalone)');
-    const handleDisplayModeChange = (e: MediaQueryListEvent) => {
+    const handleChange = (e: MediaQueryListEvent) => {
       setIsInstalled(e.matches);
     };
-    mediaQuery.addEventListener('change', handleDisplayModeChange);
+    mediaQuery.addEventListener('change', handleChange);
+
+    // Check again on visibility change (user might have installed from browser UI)
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        const info = getPlatformInfo();
+        setIsInstalled(info.isInstalled);
+        setHasPrompt(!!getDeferredPrompt());
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-      mediaQuery.removeEventListener('change', handleDisplayModeChange);
+      unsubscribe();
+      mediaQuery.removeEventListener('change', handleChange);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 
-  const promptInstall = async (): Promise<boolean> => {
-    if (!installPrompt) {
-      console.log('No install prompt available');
-      return false;
-    }
-
+  const promptInstall = useCallback(async (): Promise<'accepted' | 'dismissed' | 'unavailable'> => {
     setIsInstalling(true);
-    
     try {
-      // Show the install prompt
-      await installPrompt.prompt();
-      
-      // Wait for the user to respond
-      const { outcome } = await installPrompt.userChoice;
-      console.log(`User response to install prompt: ${outcome}`);
-      
-      if (outcome === 'accepted') {
-        setInstallPrompt(null);
-        return true;
+      const result = await triggerInstallPrompt();
+      if (result === 'accepted') {
+        setHasPrompt(false);
+        // Give time for install to complete
+        setTimeout(() => {
+          setIsInstalled(getPlatformInfo().isInstalled);
+        }, 1000);
       }
-      
-      return false;
-    } catch (error) {
-      console.error('Error prompting install:', error);
-      return false;
+      return result;
     } finally {
       setIsInstalling(false);
     }
-  };
+  }, []);
 
   return {
-    isInstallable: !!installPrompt && !isInstalled,
+    // Can we show the install button with native prompt?
+    canPrompt: hasPrompt && !isInstalled,
+    // Is the app already installed?
     isInstalled,
+    // Is an install in progress?
     isInstalling,
+    // Platform information
+    platform: platformInfo,
+    // Installation instructions for current platform
+    instructions,
+    // Trigger the install prompt
     promptInstall,
+    // Should we show manual instructions?
+    showManualInstructions: !hasPrompt && !isInstalled,
   };
 };

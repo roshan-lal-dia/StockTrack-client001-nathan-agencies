@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Moon, Sun, Monitor, Shield, Keyboard, Database, LogOut, Edit2, Check, X, Lock, Download, Smartphone, CheckCircle } from 'lucide-react';
+import { Moon, Sun, Monitor, Shield, Keyboard, Database, LogOut, Edit2, Check, X, Lock, Download, Smartphone, CheckCircle, Share, Menu } from 'lucide-react';
 import { useThemeStore } from '@/store/useThemeStore';
 import { useStore } from '@/store/useStore';
 import { toast } from '@/store/useToastStore';
@@ -16,14 +16,16 @@ export const Settings = () => {
   const [signingOut, setSigningOut] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   
-  const { isInstallable, isInstalled, isInstalling, promptInstall } = usePWAInstall();
+  const { canPrompt, isInstalled, isInstalling, instructions, platform, promptInstall } = usePWAInstall();
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
   const handleInstallApp = async () => {
-    const success = await promptInstall();
-    if (success) {
+    const result = await promptInstall();
+    if (result === 'accepted') {
       toast.success('App installed successfully!');
+    } else if (result === 'dismissed') {
+      toast.info('Installation cancelled');
     }
   };
 
@@ -327,45 +329,82 @@ export const Settings = () => {
                 </p>
               </div>
             </div>
-          ) : isInstallable ? (
+          ) : (
             <div className="space-y-4">
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Install StockTrack Pro for quick access, offline support, and a native app experience.
-              </p>
-              <button
-                onClick={handleInstallApp}
-                disabled={isInstalling}
-                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isInstalling ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
+              {/* Install prompt button - only shown when native prompt is available */}
+              {canPrompt && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Install StockTrack Pro for quick access, offline support, and a native app experience.
+                  </p>
+                  <button
+                    onClick={handleInstallApp}
+                    disabled={isInstalling}
+                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isInstalling ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Download size={18} />
+                        Install App
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Platform-specific instructions */}
+              <div className={`space-y-3 ${canPrompt ? 'pt-4 border-t border-slate-100 dark:border-slate-700' : ''}`}>
+                {instructions.type === 'manual' && (
                   <>
-                    <Download size={18} />
-                    Install App
+                    <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                      {platform.isIOS && <Share size={18} className="text-indigo-500" />}
+                      {!platform.isIOS && <Menu size={18} className="text-indigo-500" />}
+                      <span className="font-medium">{instructions.title}</span>
+                    </div>
+                    <ol className="text-sm text-slate-600 dark:text-slate-400 space-y-2 list-decimal list-inside">
+                      {instructions.steps.map((step: string, i: number) => (
+                        <li key={i} className="leading-relaxed">{step}</li>
+                      ))}
+                    </ol>
                   </>
                 )}
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                To install the app:
-              </p>
-              <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
-                <li className="flex items-start gap-2">
-                  <span className="text-indigo-500 font-bold">•</span>
-                  <span><strong>Chrome/Edge:</strong> Click the install icon in the address bar</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-indigo-500 font-bold">•</span>
-                  <span><strong>Safari (iOS):</strong> Tap Share → "Add to Home Screen"</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-indigo-500 font-bold">•</span>
-                  <span><strong>Android:</strong> Tap the menu → "Install app"</span>
-                </li>
-              </ul>
+
+                {instructions.type === 'prompt' && !canPrompt && (
+                  <>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+                      Manual Installation:
+                    </p>
+                    <ol className="text-sm text-slate-600 dark:text-slate-400 space-y-2 list-decimal list-inside">
+                      {instructions.fallback.steps.map((step: string, i: number) => (
+                        <li key={i} className="leading-relaxed">{step}</li>
+                      ))}
+                    </ol>
+                  </>
+                )}
+
+                {instructions.type === 'unsupported' && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                    <p className="text-sm text-amber-700 dark:text-amber-400">
+                      {instructions.message}
+                    </p>
+                  </div>
+                )}
+
+                {instructions.type === 'unknown' && (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    {instructions.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Browser detection info */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-700">
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  Detected: {platform.browser} on {platform.isMobile ? (platform.isIOS ? 'iOS' : 'Android') : 'Desktop'}
+                </p>
+              </div>
             </div>
           )}
         </div>
