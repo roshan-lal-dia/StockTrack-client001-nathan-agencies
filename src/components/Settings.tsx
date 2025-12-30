@@ -16,7 +16,7 @@ export const Settings = () => {
   const [signingOut, setSigningOut] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   
-  const { canPrompt, isInstalled, isInstalling, instructions, platform, promptInstall } = usePWAInstall();
+  const { canPrompt, isInstalled, isInstalling, instructions, platform, promptInstall, debug } = usePWAInstall();
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
@@ -400,10 +400,38 @@ export const Settings = () => {
               </div>
 
               {/* Browser detection info */}
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-700">
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-1">
                 <p className="text-xs text-slate-400 dark:text-slate-500">
                   Detected: {platform.browser} on {platform.isMobile ? (platform.isIOS ? 'iOS' : 'Android') : 'Desktop'}
                 </p>
+                {platform.isWebView && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    ⚠️ In-app browser detected. Open in {platform.isIOS ? 'Safari' : 'Chrome'} for installation.
+                  </p>
+                )}
+                {platform.isMobile && platform.supportsInstallPrompt && !debug.promptFired && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    💡 Browse the app for a moment - the install option may appear shortly.
+                  </p>
+                )}
+                {/* Debug toggle for troubleshooting */}
+                <details className="text-xs text-slate-400 dark:text-slate-500">
+                  <summary className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300">
+                    Debug Info
+                  </summary>
+                  <pre className="mt-1 p-2 bg-slate-100 dark:bg-slate-700 rounded text-[10px] overflow-x-auto">
+{JSON.stringify({
+  hasPrompt: debug.hasPrompt,
+  promptFired: debug.promptFired,
+  supportsPrompt: debug.supportsInstallPrompt,
+  isWebView: debug.isWebView,
+  browser: platform.browser,
+  isMobile: platform.isMobile,
+  isIOS: platform.isIOS,
+  isAndroid: platform.isAndroid,
+}, null, 2)}
+                  </pre>
+                </details>
               </div>
             </div>
           )}

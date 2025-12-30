@@ -1,6 +1,7 @@
 // Global storage for the install prompt - captures it even before React mounts
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
 let installPromptListeners: Set<(prompt: BeforeInstallPromptEvent | null) => void> = new Set();
+let promptEventFired = false;
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -17,37 +18,78 @@ declare global {
   }
 }
 
+// Debug logging helper
+const logPWA = (message: string, data?: unknown) => {
+  const timestamp = new Date().toISOString().split('T')[1];
+  if (data) {
+    console.log(`[PWA ${timestamp}] ${message}`, data);
+  } else {
+    console.log(`[PWA ${timestamp}] ${message}`);
+  }
+};
+
 // Initialize immediately when this module loads (before React)
 if (typeof window !== 'undefined') {
-  window.addEventListener('beforeinstallprompt', (e: BeforeInstallPromptEvent) => {
-    console.log('[PWA] beforeinstallprompt event captured globally');
+  logPWA('Module initializing, setting up event listeners');
+  
+  // Handler for beforeinstallprompt
+  const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
+    logPWA('beforeinstallprompt event CAPTURED!', { platforms: e.platforms });
     e.preventDefault();
     deferredPrompt = e;
+    promptEventFired = true;
     // Notify all listeners
     installPromptListeners.forEach(listener => listener(e));
-  });
+  };
+  
+  // Add listener immediately
+  window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
   window.addEventListener('appinstalled', () => {
-    console.log('[PWA] App was installed');
+    logPWA('App was installed!');
     deferredPrompt = null;
     installPromptListeners.forEach(listener => listener(null));
   });
+
+  // Also check if service worker is ready
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(() => {
+      logPWA('Service worker is ready');
+    }).catch((err) => {
+      logPWA('Service worker error:', err);
+    });
+  }
+  
+  // Log PWA-related info for debugging
+  logPWA('Platform info:', {
+    userAgent: navigator.userAgent,
+    standalone: window.matchMedia('(display-mode: standalone)').matches,
+    iosStandalone: (navigator as any).standalone,
+  });
 }
+
+// Check if the prompt event was captured
+export const wasPromptEventFired = () => promptEventFired;
 
 // Helper to detect platform
 export const getPlatformInfo = () => {
   const ua = navigator.userAgent || '';
   const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
   const isAndroid = /Android/.test(ua);
-  const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua);
-  const isChrome = /Chrome/.test(ua) && !/Edge|Edg/.test(ua);
+  const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua) && !/CriOS/.test(ua);
+  const isChrome = /Chrome/.test(ua) && !/Edge|Edg/.test(ua) || /CriOS/.test(ua);
   const isEdge = /Edge|Edg/.test(ua);
-  const isFirefox = /Firefox/.test(ua);
+  const isFirefox = /Firefox|FxiOS/.test(ua);
   const isSamsung = /SamsungBrowser/.test(ua);
   const isOpera = /OPR|Opera/.test(ua);
+  const isInAppBrowser = /FBAN|FBAV|Instagram|Twitter|Line/.test(ua);
   
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
   const isIOSStandalone = (navigator as any).standalone === true;
+  const isMobile = isIOS || isAndroid || /Mobile/.test(ua);
+  
+  // Check if running in a WebView or in-app browser
+  const isWebView = isInAppBrowser || (isAndroid && /wv/.test(ua));
   
   return {
     isIOS,
@@ -58,16 +100,22 @@ export const getPlatformInfo = () => {
     isFirefox,
     isSamsung,
     isOpera,
-    isMobile: isIOS || isAndroid,
+    isWebView,
+    isInAppBrowser,
+    isMobile,
     isInstalled: isStandalone || isIOSStandalone,
-    // iOS Safari doesn't support beforeinstallprompt
-    supportsInstallPrompt: !isIOS && (isChrome || isEdge || isSamsung || isOpera),
-    browser: isChrome ? 'Chrome' : 
+    // These browsers support beforeinstallprompt (but iOS Chrome still can't use it)
+    supportsInstallPrompt: !isIOS && !isWebView && (isChrome || isEdge || isSamsung || isOpera),
+    browser: isSamsung ? 'Samsung Internet' :
+             isChrome ? 'Chrome' : 
              isEdge ? 'Edge' : 
              isSafari ? 'Safari' : 
              isFirefox ? 'Firefox' : 
-             isSamsung ? 'Samsung Internet' :
-             isOpera ? 'Opera' : 'Unknown'
+             isOpera ? 'Opera' : 
+             isInAppBrowser ? 'In-App Browser' :
+             'Unknown',
+    // Debug info
+    ua: ua.substring(0, 100)
   };
 };
 
@@ -120,6 +168,24 @@ export const getInstallInstructions = (): InstallInstructions => {
       type: 'installed' as const,
       title: 'App Installed',
       message: 'StockTrack is already installed on your device.'
+    };
+  }
+  
+  // Handle in-app browsers (Facebook, Instagram, etc.)
+  if (platform.isWebView || platform.isInAppBrowser) {
+    return {
+      type: 'manual' as const,
+      title: 'Open in Browser',
+      steps: platform.isIOS ? [
+        'Tap the "..." or menu button',
+        'Select "Open in Safari"',
+        'Then follow Safari installation steps below'
+      ] : [
+        'Tap the "..." or menu button',
+        'Select "Open in Chrome" or "Open in Browser"',
+        'Then use Chrome\'s install option'
+      ],
+      icon: 'menu'
     };
   }
   

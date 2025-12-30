@@ -4,20 +4,23 @@ import {
   subscribeToPrompt, 
   triggerInstallPrompt, 
   getPlatformInfo,
-  getInstallInstructions 
+  getInstallInstructions,
+  wasPromptEventFired
 } from '@/lib/pwaInstall';
 
 export const usePWAInstall = () => {
   const [hasPrompt, setHasPrompt] = useState(() => !!getDeferredPrompt());
   const [isInstalled, setIsInstalled] = useState(() => getPlatformInfo().isInstalled);
   const [isInstalling, setIsInstalling] = useState(false);
-  const [platformInfo] = useState(() => getPlatformInfo());
-  const [instructions] = useState(() => getInstallInstructions());
+  const [platformInfo, setPlatformInfo] = useState(() => getPlatformInfo());
+  const [instructions, setInstructions] = useState(() => getInstallInstructions());
+  const [promptFired, setPromptFired] = useState(() => wasPromptEventFired());
 
   useEffect(() => {
     // Subscribe to prompt availability changes
     const unsubscribe = subscribeToPrompt((prompt) => {
       setHasPrompt(!!prompt);
+      setPromptFired(wasPromptEventFired());
       if (!prompt) {
         // Check if installed after prompt is cleared
         setIsInstalled(getPlatformInfo().isInstalled);
@@ -37,12 +40,22 @@ export const usePWAInstall = () => {
         const info = getPlatformInfo();
         setIsInstalled(info.isInstalled);
         setHasPrompt(!!getDeferredPrompt());
+        setPromptFired(wasPromptEventFired());
+        setPlatformInfo(info);
+        setInstructions(getInstallInstructions());
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
+    // Also re-check after a few seconds (for late-firing prompt events)
+    const checkTimer = setTimeout(() => {
+      setHasPrompt(!!getDeferredPrompt());
+      setPromptFired(wasPromptEventFired());
+    }, 3000);
+
     return () => {
       unsubscribe();
+      clearTimeout(checkTimer);
       mediaQuery.removeEventListener('change', handleChange);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
@@ -80,5 +93,13 @@ export const usePWAInstall = () => {
     promptInstall,
     // Should we show manual instructions?
     showManualInstructions: !hasPrompt && !isInstalled,
+    // Debug info
+    debug: {
+      hasPrompt,
+      promptFired,
+      supportsInstallPrompt: platformInfo.supportsInstallPrompt,
+      isWebView: platformInfo.isWebView,
+      isInAppBrowser: platformInfo.isInAppBrowser,
+    }
   };
 };
