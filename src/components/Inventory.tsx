@@ -11,10 +11,14 @@ import {
   SortAsc,
   SortDesc,
   X,
-  ChevronDown
+  ChevronDown,
+  ScanBarcode,
+  Printer
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { InventoryItem } from '@/types';
+import { BarcodeScanner } from './BarcodeScanner';
+import { PrintLabels } from './PrintLabels';
 
 interface InventoryProps {
   onNavigate: (view: 'rapid-receive') => void;
@@ -34,6 +38,8 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [locationFilter, setLocationFilter] = useState<string>('all');
+  const [showScanner, setShowScanner] = useState(false);
+  const [showPrintLabels, setShowPrintLabels] = useState(false);
 
   // Get unique categories and locations
   const categories = useMemo(() => {
@@ -45,6 +51,17 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
     const locs = new Set(inventory.map(i => i.location).filter(Boolean));
     return ['all', ...Array.from(locs)];
   }, [inventory]);
+
+  const handleBarcodeScan = (code: string, item?: InventoryItem) => {
+    if (item) {
+      // Found an item - open transaction modal
+      onOpenModal('transaction', item, 'in');
+    } else {
+      // No match - search for the code
+      setSearchQuery(code);
+    }
+    setShowScanner(false);
+  };
 
   const filteredInventory = useMemo(() => {
     let result = [...inventory];
@@ -111,7 +128,23 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
             {filteredInventory.length} of {inventory.length} items
           </p>
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex gap-2 w-full md:w-auto flex-wrap">
+          <button 
+            onClick={() => setShowScanner(true)}
+            className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2"
+            title="Scan Barcode"
+          >
+            <ScanBarcode size={18} />
+            <span className="hidden sm:inline">Scan</span>
+          </button>
+          <button 
+            onClick={() => setShowPrintLabels(true)}
+            className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2"
+            title="Print Labels"
+          >
+            <Printer size={18} />
+            <span className="hidden sm:inline">Labels</span>
+          </button>
           <button 
             onClick={() => onNavigate('rapid-receive')}
             className="flex-1 md:flex-none px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center justify-center gap-2"
@@ -321,6 +354,20 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
           </div>
         )}
       </div>
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScanner
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScan={handleBarcodeScan}
+        mode="search"
+      />
+
+      {/* Print Labels Modal */}
+      <PrintLabels
+        isOpen={showPrintLabels}
+        onClose={() => setShowPrintLabels(false)}
+      />
     </div>
   );
 };

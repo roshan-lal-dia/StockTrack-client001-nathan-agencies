@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { formatDate } from '@/types';
+import { DashboardCharts } from './DashboardCharts';
 
 interface DashboardProps {
   onNavigate: (view: 'history' | 'team') => void;
@@ -61,13 +62,7 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
       </div>
 
       {role === 'admin' && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6">
-           <h3 className="font-bold text-lg text-slate-800 dark:text-white mb-4">Stock Value Distribution</h3>
-           {/* Visual placeholder for a chart */}
-           <div className="h-40 bg-slate-50 dark:bg-slate-900 rounded-xl flex items-center justify-center border border-dashed border-slate-200 dark:border-slate-700">
-              <p className="text-slate-400 text-sm">Analytics Charts would go here (Requires Chart.js)</p>
-           </div>
-        </div>
+        <DashboardCharts />
       )}
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">

@@ -1,6 +1,7 @@
 import { Download, FileJson, FileSpreadsheet, Database } from 'lucide-react';
 import { generateFullBackup, exportInventoryCSV, exportLogsCSV } from '@/lib/export';
 import { useToastStore } from '@/store/useToastStore';
+import { CSVImport } from './CSVImport';
 
 export const Backup = () => {
   const { addToast } = useToastStore();
@@ -33,10 +34,19 @@ export const Backup = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto animate-fade-in">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Data Backup & Export</h2>
+    <div className="max-w-4xl mx-auto animate-fade-in space-y-8">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Data Import & Export</h2>
+        <p className="text-slate-500 dark:text-slate-400">Import, export, and backup your inventory data</p>
+      </div>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {/* CSV Import Section */}
+      <CSVImport />
+      
+      {/* Export Section */}
+      <div>
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Export & Backup</h3>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* Full Backup */}
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3 mb-4">
@@ -102,9 +112,10 @@ export const Backup = () => {
             <FileJson size={18} /> Export Logs
           </button>
         </div>
+        </div>
       </div>
 
-      <div className="mt-8 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700">
+      <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700">
         <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-2">About Data Portability</h3>
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Your data is never locked in. Export anytime in standard formats (JSON, CSV) 

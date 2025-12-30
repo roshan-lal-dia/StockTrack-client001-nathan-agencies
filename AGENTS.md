@@ -22,6 +22,10 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **Image Uploads**: Product photos and transaction attachments via Cloudinary
 - **PWA Support**: Installable app with full offline capabilities
 - **Offline Mode**: Works without internet, syncs when back online
+- **Barcode Scanner**: Scan barcodes/QR codes via camera to find or add items
+- **CSV Import**: Bulk import products from spreadsheet files
+- **Dashboard Charts**: Visual analytics with activity trends, category distribution
+- **Print Labels**: Generate and print product labels with barcodes
 
 ## Offline & PWA Features
 
