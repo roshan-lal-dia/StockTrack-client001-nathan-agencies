@@ -12,12 +12,15 @@ import {
   Download,
   Settings,
   Search,
-  AlertTriangle
+  AlertTriangle,
+  Smartphone
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { auth } from '@/lib/firebase';
 import { useToastStore } from '@/store/useToastStore';
 import { SyncIndicator } from './ConflictResolver';
+import { InstallModal } from './InstallModal';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -30,6 +33,9 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
   const { userProfile, role, isOffline, isFirebaseConfigured, inventory } = useStore();
   const { addToast } = useToastStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  
+  const { canPrompt, isInstalled, platform, promptInstall } = usePWAInstall();
 
   const lowStockCount = inventory.filter(item => item.quantity <= item.minStock).length;
 
@@ -162,6 +168,47 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
                 <NavItem view="backup" icon={Download} label="Backup & Export" />
               </div>
             )}
+            
+            {/* Install App Button - Only show if not installed */}
+            {!isInstalled && (
+              <div className="pt-4 mt-4 border-t border-slate-800">
+                <p className="px-4 text-xs font-bold text-slate-600 uppercase mb-2">Get the App</p>
+                {platform.isIOS ? (
+                  // iOS: Show button that opens instruction modal
+                  <button
+                    onClick={() => { setShowInstallModal(true); setMobileMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg hover:from-indigo-500 hover:to-purple-500"
+                  >
+                    <Smartphone size={20} />
+                    <span className="flex-1 text-left">Install App</span>
+                  </button>
+                ) : canPrompt ? (
+                  // Android/Desktop with native prompt available
+                  <button
+                    onClick={async () => {
+                      const result = await promptInstall();
+                      if (result === 'accepted') {
+                        addToast('App installed successfully!', 'success');
+                      }
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg animate-pulse hover:from-emerald-500 hover:to-teal-500"
+                  >
+                    <Download size={20} />
+                    <span className="flex-1 text-left">Install App</span>
+                  </button>
+                ) : (
+                  // Android/Desktop without prompt - show manual instructions
+                  <button
+                    onClick={() => { setShowInstallModal(true); setMobileMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium hover:bg-slate-800 text-slate-400 hover:text-white"
+                  >
+                    <Download size={20} />
+                    <span className="flex-1 text-left">How to Install</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -202,6 +249,9 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
           {children}
         </div>
       </main>
+      
+      {/* Install Modal */}
+      <InstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
     </div>
   );
 };
