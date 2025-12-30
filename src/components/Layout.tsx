@@ -11,10 +11,12 @@ import {
   LogOut,
   Download,
   Settings,
-  Search
+  Search,
+  AlertTriangle
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { auth } from '@/lib/firebase';
+import { useToastStore } from '@/store/useToastStore';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,12 +26,23 @@ interface LayoutProps {
 }
 
 export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalette }: LayoutProps) => {
-  const { userProfile, role, isOffline } = useStore();
+  const { userProfile, role, isOffline, inventory } = useStore();
+  const { addToast } = useToastStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleSignOut = () => auth.signOut();
+  const lowStockCount = inventory.filter(item => item.quantity <= item.minStock).length;
 
-  const NavItem = ({ view, icon: Icon, label, highlight }: { view: string, icon: typeof Box, label: string, highlight?: boolean }) => (
+  const handleSignOut = async () => {
+    try {
+      await auth.signOut();
+      addToast('Signed out successfully', 'success');
+    } catch (error) {
+      console.error('Sign out error:', error);
+      addToast('Failed to sign out', 'error');
+    }
+  };
+
+  const NavItem = ({ view, icon: Icon, label, highlight, badge }: { view: string, icon: typeof Box, label: string, highlight?: boolean, badge?: number }) => (
     <button 
       onClick={() => { onViewChange(view as any); setMobileMenuOpen(false); }}
       className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium ${
@@ -40,7 +53,13 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
           : 'hover:bg-slate-800 text-slate-400 hover:text-white'
       }`}
     >
-      <Icon size={20} /> {label}
+      <Icon size={20} /> 
+      <span className="flex-1 text-left">{label}</span>
+      {badge && badge > 0 && (
+        <span className="px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </button>
   );
 
@@ -97,12 +116,23 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
           >
             <Search size={16} />
             <span className="flex-1 text-left">Quick search...</span>
-            <kbd className="px-1.5 py-0.5 bg-slate-700 rounded text-[10px] font-mono">⌘K</kbd>
+            <kbd className="px-1.5 py-0.5 bg-slate-700 rounded text-[10px] font-mono">Alt+K</kbd>
           </button>
+
+          {/* Low Stock Alert Banner */}
+          {lowStockCount > 0 && (
+            <button
+              onClick={() => { onViewChange('inventory'); setMobileMenuOpen(false); }}
+              className="w-full flex items-center gap-2 px-4 py-2.5 mb-4 bg-amber-900/30 border border-amber-800 rounded-xl text-amber-400 text-sm hover:bg-amber-900/40 transition-colors"
+            >
+              <AlertTriangle size={16} className="animate-pulse" />
+              <span className="font-medium">{lowStockCount} Low Stock</span>
+            </button>
+          )}
 
           <div className="space-y-1">
             <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
-            <NavItem view="inventory" icon={Package} label="Inventory" />
+            <NavItem view="inventory" icon={Package} label="Inventory" badge={lowStockCount} />
             <NavItem view="rapid-receive" icon={Zap} label="Rapid Receive" highlight />
             <NavItem view="history" icon={History} label="Logs" />
             

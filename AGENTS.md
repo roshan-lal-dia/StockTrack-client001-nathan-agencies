@@ -5,13 +5,18 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 
 ## Key Features
 - **Dark Mode**: System-aware theme with manual override (light/dark/system)
-- **Command Palette**: Quick navigation with `Ctrl/Cmd + K`
+- **Command Palette**: Quick navigation with `Alt + K`
 - **Toast Notifications**: Non-blocking feedback for all actions
 - **Advanced Filtering**: Filter by stock level, category, location with sorting
 - **Real-time Sync**: Firebase Firestore with offline persistence
 - **Data Portability**: Export to JSON/CSV, no vendor lock-in
 - **Role-based Access**: Admin and Staff roles with different permissions
-- **Keyboard Shortcuts**: Power-user features throughout
+- **Keyboard Shortcuts**: Power-user features (Alt-based to avoid browser conflicts)
+- **Low Stock Alerts**: Visual badges and alerts for items below threshold
+- **Item Details Drawer**: Quick view of item info and history
+- **Confirmation Dialogs**: Safe deletion with confirmations
+- **Loading Skeletons**: Smooth perceived performance
+- **Empty States**: Helpful guidance when no data
 
 ## Architecture
 
@@ -31,8 +36,12 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 ### Keyboard Shortcuts
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl/Cmd + K` | Open Command Palette |
-| `Ctrl/Cmd + N` | Create New Item |
+| `Alt + K` | Open Command Palette |
+| `Alt + N` | Create New Item |
+| `Alt + R` | Rapid Receive Mode |
+| `Alt + D` | Go to Dashboard |
+| `Alt + I` | Go to Inventory |
+| `Alt + ,` | Open Settings |
 | `Escape` | Close Modals/Dialogs |
 
 ### Data Export (`src/lib/export.ts`)
@@ -58,7 +67,12 @@ src/
 │   ├── Settings.tsx        # User preferences & theme
 │   ├── Modals.tsx          # Transaction/Edit dialogs
 │   ├── Toast.tsx           # Notification container
-│   └── CommandPalette.tsx  # Quick search/navigation
+│   ├── CommandPalette.tsx  # Quick search/navigation (Alt+K)
+│   ├── ConfirmDialog.tsx   # Confirmation modals for dangerous actions
+│   ├── EmptyState.tsx      # Helpful empty state displays
+│   ├── Skeleton.tsx        # Loading skeleton components
+│   ├── ItemDetailDrawer.tsx # Item details side panel
+│   └── LowStockAlerts.tsx  # Low stock notification components
 ├── store/
 │   ├── useStore.ts         # Main app state (Zustand)
 │   ├── useThemeStore.ts    # Theme persistence
@@ -71,6 +85,8 @@ src/
 ├── App.tsx                 # Main app with routing
 ├── main.tsx                # Entry point
 └── index.css               # Tailwind imports
+docs/
+└── FIREBASE_SETUP.md       # Firebase integration guide
 ```
 
 ## Setup Instructions

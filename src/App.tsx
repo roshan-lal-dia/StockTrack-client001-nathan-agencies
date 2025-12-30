@@ -38,11 +38,19 @@ function App() {
   // Apply theme to document
   useEffect(() => {
     const root = document.documentElement;
+    let shouldBeDark = false;
+    
     if (theme === 'system') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      root.classList.toggle('dark', prefersDark);
+      shouldBeDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     } else {
-      root.classList.toggle('dark', theme === 'dark');
+      shouldBeDark = theme === 'dark';
+    }
+    
+    // Force remove and add to ensure proper toggle
+    if (shouldBeDark) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
     }
   }, [theme, resolvedTheme]);
 
@@ -59,20 +67,46 @@ function App() {
     return () => mediaQuery.removeEventListener('change', handler);
   }, [theme]);
 
-  // Global keyboard shortcuts
+  // Global keyboard shortcuts (using Alt to avoid browser conflicts)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Command palette: Cmd/Ctrl + K
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      // Skip if in input fields (except for Escape)
+      const isInInput = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName);
+      
+      // Command palette: Alt + K or Ctrl + K
+      if (e.altKey && e.key === 'k') {
         e.preventDefault();
         setCommandPaletteOpen(true);
       }
       
-      // New item: Cmd/Ctrl + N (when not in an input)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n' && 
-          !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+      // New item: Alt + N
+      if (e.altKey && e.key === 'n' && !isInInput) {
         e.preventDefault();
         setActiveModal('add');
+      }
+      
+      // Rapid receive: Alt + R
+      if (e.altKey && e.key === 'r' && !isInInput) {
+        e.preventDefault();
+        setView('rapid-receive');
+      }
+      
+      // Settings: Alt + ,
+      if (e.altKey && e.key === ',') {
+        e.preventDefault();
+        setView('settings');
+      }
+      
+      // Dashboard: Alt + D
+      if (e.altKey && e.key === 'd' && !isInInput) {
+        e.preventDefault();
+        setView('dashboard');
+      }
+      
+      // Inventory: Alt + I
+      if (e.altKey && e.key === 'i' && !isInInput) {
+        e.preventDefault();
+        setView('inventory');
       }
       
       // Escape to close modals

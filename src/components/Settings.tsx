@@ -94,10 +94,12 @@ export const Settings = () => {
         <div className="p-6">
           <div className="space-y-3">
             {[
-              { keys: ['Ctrl', 'K'], action: 'Open quick search' },
-              { keys: ['Ctrl', 'N'], action: 'New product' },
-              { keys: ['Ctrl', 'R'], action: 'Rapid receive mode' },
-              { keys: ['Ctrl', ','], action: 'Open settings' },
+              { keys: ['Alt', 'K'], action: 'Open quick search' },
+              { keys: ['Alt', 'N'], action: 'New product' },
+              { keys: ['Alt', 'R'], action: 'Rapid receive mode' },
+              { keys: ['Alt', 'D'], action: 'Go to Dashboard' },
+              { keys: ['Alt', 'I'], action: 'Go to Inventory' },
+              { keys: ['Alt', ','], action: 'Open settings' },
               { keys: ['Esc'], action: 'Close modal / Go back' },
             ].map((shortcut) => (
               <div key={shortcut.action} className="flex items-center justify-between py-2">
