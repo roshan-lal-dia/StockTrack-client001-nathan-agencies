@@ -20,6 +20,7 @@ import { useStore } from '@/store/useStore';
 import { InventoryItem } from '@/types';
 import { BarcodeScanner } from './BarcodeScanner';
 import { PrintLabels } from './PrintLabels';
+import { ImageViewer, ImageThumbnail } from './ImageViewer';
 
 interface InventoryProps {
   onNavigate: (view: 'rapid-receive') => void;
@@ -41,6 +42,7 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
   const [locationFilter, setLocationFilter] = useState<string>('all');
   const [showScanner, setShowScanner] = useState(false);
   const [showPrintLabels, setShowPrintLabels] = useState(false);
+  const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
 
   // Get unique categories and locations
   const categories = useMemo(() => {
@@ -305,23 +307,33 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
              </button>
 
              <div className="flex justify-between items-start mb-4 pr-8">
-                <div>
-                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase rounded tracking-wider">{item.category || 'Uncategorized'}</span>
-                      {item.quantity === 0 && (
-                         <span className="px-2 py-0.5 bg-slate-800 dark:bg-slate-600 text-white text-[10px] font-bold uppercase rounded tracking-wider flex items-center gap-1">
-                           Out of Stock
-                         </span>
-                      )}
-                      {item.quantity > 0 && item.quantity <= item.minStock && (
-                         <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase rounded tracking-wider flex items-center gap-1">
-                           <AlertTriangle size={10} /> Low Stock
-                         </span>
-                      )}
-                   </div>
-                   <h3 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{item.name}</h3>
-                   <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-                      <span>📍 {item.location || 'N/A'}</span>
+                <div className="flex gap-3">
+                   {/* Product Image */}
+                   <ImageThumbnail
+                     imageUrl={item.imageUrl}
+                     thumbnailUrl={item.thumbnailUrl}
+                     alt={item.name}
+                     size="lg"
+                     onClick={() => item.imageUrl && setViewingImage({ url: item.imageUrl, title: item.name })}
+                   />
+                   <div>
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                         <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase rounded tracking-wider">{item.category || 'Uncategorized'}</span>
+                         {item.quantity === 0 && (
+                            <span className="px-2 py-0.5 bg-slate-800 dark:bg-slate-600 text-white text-[10px] font-bold uppercase rounded tracking-wider flex items-center gap-1">
+                              Out of Stock
+                            </span>
+                         )}
+                         {item.quantity > 0 && item.quantity <= item.minStock && (
+                            <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase rounded tracking-wider flex items-center gap-1">
+                              <AlertTriangle size={10} /> Low Stock
+                            </span>
+                         )}
+                      </div>
+                      <h3 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{item.name}</h3>
+                      <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                         <span>📍 {item.location || 'N/A'}</span>
+                      </div>
                    </div>
                 </div>
                 <div className="text-center bg-slate-50 dark:bg-slate-700 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-600 min-w-[4rem]">
@@ -384,6 +396,16 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
         isOpen={showPrintLabels}
         onClose={() => setShowPrintLabels(false)}
       />
+
+      {/* Image Viewer Modal */}
+      {viewingImage && (
+        <ImageViewer
+          isOpen={true}
+          onClose={() => setViewingImage(null)}
+          imageUrl={viewingImage.url}
+          title={viewingImage.title}
+        />
+      )}
     </div>
   );
 };

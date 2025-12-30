@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { formatDate } from '@/types';
+import { ImageViewer, ImageThumbnail } from './ImageViewer';
 
 export const Logs = () => {
   const { logs } = useStore();
+  const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
 
   return (
     <div className="max-w-5xl mx-auto animate-fade-in">
@@ -17,6 +20,7 @@ export const Logs = () => {
                     <th className="px-6 py-4">Product</th>
                     <th className="px-6 py-4">Qty</th>
                     <th className="px-6 py-4">User</th>
+                    <th className="px-4 py-4">Attach</th>
                  </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -35,11 +39,24 @@ export const Logs = () => {
                        </td>
                        <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{log.itemName}</td>
                        <td className="px-6 py-4 font-mono text-slate-600 dark:text-slate-300">{log.quantity}</td>
-                       <td className="px-6 py-4 text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                            {log.user.charAt(0)}
+                       <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                              {log.user.charAt(0)}
+                            </div>
+                            {log.user}
                           </div>
-                          {log.user}
+                       </td>
+                       <td className="px-4 py-4">
+                          <ImageThumbnail
+                            imageUrl={log.attachmentUrl}
+                            alt={log.attachmentName || 'Attachment'}
+                            size="sm"
+                            onClick={() => log.attachmentUrl && setViewingImage({ 
+                              url: log.attachmentUrl, 
+                              title: log.attachmentName || `${log.itemName} - ${log.type.toUpperCase()}` 
+                            })}
+                          />
                        </td>
                     </tr>
                  ))}
@@ -47,6 +64,16 @@ export const Logs = () => {
            </table>
         </div>
       </div>
+
+      {/* Image Viewer Modal */}
+      {viewingImage && (
+        <ImageViewer
+          isOpen={true}
+          onClose={() => setViewingImage(null)}
+          imageUrl={viewingImage.url}
+          title={viewingImage.title}
+        />
+      )}
     </div>
   );
 };
