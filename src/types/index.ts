@@ -53,6 +53,9 @@ export interface InventoryItem {
   location: string;
   notes: string;
   lastUpdated?: DateField;
+  // Image fields (Cloudinary URLs - small strings, not base64)
+  imageUrl?: string;
+  thumbnailUrl?: string;
 }
 
 export interface LogItem {
@@ -62,6 +65,9 @@ export interface LogItem {
   quantity: number;
   user: string;
   timestamp: DateField;
+  // Optional attachment for transaction proof
+  attachmentUrl?: string;
+  attachmentName?: string;
 }
 
 export interface UserProfile {

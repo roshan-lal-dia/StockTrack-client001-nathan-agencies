@@ -5,6 +5,8 @@ import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { ImageUpload, AttachmentUpload } from './ImageUpload';
+import { UploadedImage } from '@/lib/imageUtils';
 
 interface ModalsProps {
   activeModal: 'none' | 'add' | 'transaction' | 'edit';
@@ -27,6 +29,8 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
   // Transaction State
   const [transactionAmount, setTransactionAmount] = useState<string>('');
   const [transactionType, setTransactionType] = useState<'in' | 'out'>('in');
+  const [attachmentUrl, setAttachmentUrl] = useState<string>('');
+  const [attachmentName, setAttachmentName] = useState<string>('');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -35,7 +39,9 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
     quantity: 0,
     minStock: 5,
     location: '',
-    notes: ''
+    notes: '',
+    imageUrl: '',
+    thumbnailUrl: ''
   });
 
   useEffect(() => {
@@ -46,14 +52,39 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
         quantity: selectedItem.quantity,
         minStock: selectedItem.minStock,
         location: selectedItem.location,
-        notes: selectedItem.notes
+        notes: selectedItem.notes,
+        imageUrl: selectedItem.imageUrl || '',
+        thumbnailUrl: selectedItem.thumbnailUrl || ''
       });
     } else if (activeModal === 'add') {
-      setFormData({ name: '', category: '', quantity: 0, minStock: 5, location: '', notes: '' });
+      setFormData({ name: '', category: '', quantity: 0, minStock: 5, location: '', notes: '', imageUrl: '', thumbnailUrl: '' });
     }
     setTransactionAmount('');
     setTransactionType(initialTransactionType);
+    setAttachmentUrl('');
+    setAttachmentName('');
   }, [activeModal, selectedItem, initialTransactionType]);
+
+  const handleImageUpload = (image: UploadedImage) => {
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: image.url,
+      thumbnailUrl: image.thumbnailUrl
+    }));
+  };
+
+  const handleImageRemove = () => {
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: '',
+      thumbnailUrl: ''
+    }));
+  };
+
+  const handleAttachmentUpload = (image: UploadedImage) => {
+    setAttachmentUrl(image.url);
+    setAttachmentName(image.originalName);
+  };
 
   const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +184,8 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
           itemName: selectedItem.name,
           quantity: qty,
           user: userProfile?.name || 'Unknown',
-          timestamp: serverTimestamp()
+          timestamp: serverTimestamp(),
+          ...(attachmentUrl && { attachmentUrl, attachmentName })
         });
       } else {
         // Offline mode - use local storage
@@ -169,7 +201,8 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
           itemName: selectedItem.name,
           quantity: qty,
           user: userProfile?.name || 'Local User',
-          timestamp: now
+          timestamp: now,
+          ...(attachmentUrl && { attachmentUrl, attachmentName })
         });
       }
 
@@ -225,9 +258,17 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
                      </div>
                   </div>
 
+                  {/* Attachment for receipt/proof */}
+                  <AttachmentUpload
+                    currentUrl={attachmentUrl}
+                    currentName={attachmentName}
+                    onUpload={handleAttachmentUpload}
+                    onRemove={() => { setAttachmentUrl(''); setAttachmentName(''); }}
+                  />
+
                   <button 
                      type="submit" 
-                     className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transform transition-transform active:scale-95
+                     className={`w-full py-4 mt-4 rounded-xl font-bold text-white shadow-lg transform transition-transform active:scale-95
                         ${transactionType === 'in' ? 'bg-emerald-600 shadow-emerald-200 dark:shadow-emerald-900/30' : 'bg-rose-600 shadow-rose-200 dark:shadow-rose-900/30'}`}
                   >
                      Confirm {transactionType === 'in' ? 'Receipt' : 'Dispatch'}
@@ -250,6 +291,15 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
                </div>
 
                <form onSubmit={handleSaveItem} className="space-y-5">
+                  {/* Product Image Upload */}
+                  <ImageUpload
+                    currentImageUrl={formData.imageUrl}
+                    onUpload={handleImageUpload}
+                    onRemove={handleImageRemove}
+                    folder="stocktrack/products"
+                    label="Product Image"
+                  />
+
                   <div>
                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Product Name</label>
                      <input 

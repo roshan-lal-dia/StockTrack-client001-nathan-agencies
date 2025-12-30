@@ -3,6 +3,27 @@
 ## Overview
 StockTrack Pro uses Firebase for authentication, real-time database, and offline persistence. This guide covers setting up a new Firebase project and configuring the application.
 
+> **Note**: StockTrack also supports **LOCAL mode** (no Firebase required). The app will work with localStorage when Firebase is not configured. See [Running Without Firebase](#running-without-firebase) below.
+
+> **For Image Uploads**: See [CLOUDINARY_SETUP.md](./CLOUDINARY_SETUP.md) - Firebase Storage is not used (not available on free tier).
+
+---
+
+## Quick Start
+
+If you already have a Firebase project, just add these to your `.env` file:
+
+```env
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
+VITE_FIREBASE_APP_ID=1:123456789:web:abcdef
+```
+
+Then run `npm run dev`. For new projects, follow the detailed steps below.
+
 ---
 
 ## 1. Create a Firebase Project
@@ -277,8 +298,27 @@ This preserves the user's UID and all associated data.
 
 ---
 
-## Need Help?
+## Running Without Firebase
 
+StockTrack works in **LOCAL mode** when Firebase is not configured:
+
+- Data is stored in browser localStorage
+- No authentication (single-user mode)
+- No cloud sync between devices
+- Status indicator shows "LOCAL" in the sidebar
+
+This is useful for:
+- Quick demos and testing
+- Single-device deployments
+- Offline-only usage
+
+To use LOCAL mode, simply don't set any `VITE_FIREBASE_*` variables in `.env`.
+
+---
+
+## Related Documentation
+
+- [Cloudinary Setup](./CLOUDINARY_SETUP.md) - For image uploads (product photos, attachments)
 - [Firebase Documentation](https://firebase.google.com/docs)
 - [Firebase Console](https://console.firebase.google.com/)
 - [Firebase Community](https://firebase.google.com/community)

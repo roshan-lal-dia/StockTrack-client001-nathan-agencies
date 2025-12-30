@@ -17,6 +17,7 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **Confirmation Dialogs**: Safe deletion with confirmations
 - **Loading Skeletons**: Smooth perceived performance
 - **Empty States**: Helpful guidance when no data
+- **Image Uploads**: Product photos and transaction attachments via Cloudinary
 
 ## Architecture
 
@@ -72,14 +73,16 @@ src/
 │   ├── EmptyState.tsx      # Helpful empty state displays
 │   ├── Skeleton.tsx        # Loading skeleton components
 │   ├── ItemDetailDrawer.tsx # Item details side panel
-│   └── LowStockAlerts.tsx  # Low stock notification components
+│   ├── LowStockAlerts.tsx  # Low stock notification components
+│   └── ImageUpload.tsx     # Image upload with Cloudinary integration
 ├── store/
 │   ├── useStore.ts         # Main app state (Zustand)
 │   ├── useThemeStore.ts    # Theme persistence
 │   └── useToastStore.ts    # Toast notifications
 ├── lib/
 │   ├── firebase.ts         # Firebase configuration
-│   └── export.ts           # Data export utilities
+│   ├── export.ts           # Data export utilities
+│   └── imageUtils.ts       # Cloudinary upload utilities
 ├── types/
 │   └── index.ts            # TypeScript interfaces
 ├── App.tsx                 # Main app with routing
@@ -102,7 +105,13 @@ docs/
     VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
     VITE_FIREBASE_APP_ID=your_app_id
     ```
-3. `npm run dev`
+3. (Optional) Add Cloudinary config for image uploads:
+    ```
+    VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+    VITE_CLOUDINARY_UPLOAD_PRESET=your_unsigned_upload_preset
+    ```
+    See `docs/CLOUDINARY_SETUP.md` for detailed Cloudinary setup instructions.
+4. `npm run dev`
 
 ## Data Model
 
@@ -114,6 +123,8 @@ docs/
 - `minStock`: Low stock threshold
 - `location`: Shelf/Bin location
 - `notes`: Additional details
+- `imageUrl`: Product photo URL (Cloudinary)
+- `thumbnailUrl`: Optimized thumbnail URL
 - `lastUpdated`: Timestamp
 
 ### Logs
@@ -121,6 +132,8 @@ docs/
 - `itemName`: Name of item
 - `quantity`: Amount changed
 - `user`: User who performed action
+- `attachmentUrl`: Transaction attachment URL (Cloudinary)
+- `attachmentName`: Original filename of attachment
 - `timestamp`: Time of action
 
 ## Roles
