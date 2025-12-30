@@ -17,6 +17,7 @@ import {
 import { useStore } from '@/store/useStore';
 import { auth } from '@/lib/firebase';
 import { useToastStore } from '@/store/useToastStore';
+import { SyncIndicator } from './ConflictResolver';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -113,13 +114,18 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
             <div className="p-2 bg-indigo-600 rounded-lg">
               <Box size={24} className="text-white" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-lg font-bold tracking-tight">StockTrack</h1>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className={`w-2 h-2 rounded-full ${statusInfo.color}`} />
                 <span className="text-[10px] font-medium uppercase tracking-wider">{statusInfo.text}</span>
               </div>
             </div>
+          </div>
+          
+          {/* Sync Status */}
+          <div className="mb-4">
+            <SyncIndicator />
           </div>
 
           {/* Quick Search Button */}

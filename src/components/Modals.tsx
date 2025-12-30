@@ -7,6 +7,7 @@ import { doc, updateDoc, addDoc, collection, serverTimestamp, increment } from '
 import { db } from '@/lib/firebase';
 import { ImageUpload, AttachmentUpload } from './ImageUpload';
 import { UploadedImage } from '@/lib/imageUtils';
+import { savePendingChange, generateChangeId } from '@/lib/conflictResolution';
 
 interface ModalsProps {
   activeModal: 'none' | 'add' | 'transaction' | 'edit';
@@ -181,6 +182,20 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
       : selectedItem.quantity - qty;
     const now = new Date().toISOString();
     const isOnline = navigator.onLine;
+    const delta = transactionType === 'in' ? qty : -qty;
+
+    // Track pending change for conflict resolution
+    savePendingChange({
+      id: generateChangeId(),
+      itemId: selectedItem.id,
+      type: 'quantity_delta',
+      delta: delta,
+      previousQuantity: selectedItem.quantity,
+      timestamp: now,
+      userId: userProfile?.uid || 'local',
+      userName: userProfile?.name || 'Local User',
+      synced: isOnline && isFirebaseConfigured
+    });
 
     // Always close modal and show toast immediately for good UX
     const syncNote = isOnline ? '' : ' (will sync when online)';

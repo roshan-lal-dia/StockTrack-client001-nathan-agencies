@@ -2,6 +2,8 @@ import { Download, FileJson, FileSpreadsheet, Database } from 'lucide-react';
 import { generateFullBackup, exportInventoryCSV, exportLogsCSV } from '@/lib/export';
 import { useToastStore } from '@/store/useToastStore';
 import { CSVImport } from './CSVImport';
+import { DatabaseAdmin } from './DatabaseAdmin';
+import { ReportGenerator } from './ReportGenerator';
 
 export const Backup = () => {
   const { addToast } = useToastStore();
@@ -123,6 +125,12 @@ export const Backup = () => {
           We recommend creating weekly backups for data safety.
         </p>
       </div>
+
+      {/* PDF Reports */}
+      <ReportGenerator />
+
+      {/* Database Management */}
+      <DatabaseAdmin />
     </div>
   );
 };

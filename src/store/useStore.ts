@@ -13,6 +13,7 @@ interface AppState {
   loading: boolean;
   isOffline: boolean;
   isFirebaseConfigured: boolean;
+  favorites: string[]; // Array of item IDs
   
   setUser: (user: User | null) => void;
   setUserProfile: (profile: UserProfile | null) => void;
@@ -27,6 +28,8 @@ interface AppState {
   setLoading: (loading: boolean) => void;
   setIsOffline: (isOffline: boolean) => void;
   setIsFirebaseConfigured: (configured: boolean) => void;
+  toggleFavorite: (itemId: string) => void;
+  isFavorite: (itemId: string) => boolean;
 }
 
 export const useStore = create<AppState>()(
@@ -41,6 +44,7 @@ export const useStore = create<AppState>()(
       loading: true,
       isOffline: !navigator.onLine,
       isFirebaseConfigured: false,
+      favorites: [],
 
       setUser: (user) => set({ user }),
       setUserProfile: (userProfile) => set({ userProfile }),
@@ -61,6 +65,12 @@ export const useStore = create<AppState>()(
       setLoading: (loading) => set({ loading }),
       setIsOffline: (isOffline) => set({ isOffline }),
       setIsFirebaseConfigured: (isFirebaseConfigured) => set({ isFirebaseConfigured }),
+      toggleFavorite: (itemId) => set({
+        favorites: get().favorites.includes(itemId)
+          ? get().favorites.filter(id => id !== itemId)
+          : [...get().favorites, itemId]
+      }),
+      isFavorite: (itemId) => get().favorites.includes(itemId),
     }),
     {
       name: 'stocktrack-data',
@@ -69,6 +79,7 @@ export const useStore = create<AppState>()(
         logs: state.logs,
         userProfile: state.userProfile,
         role: state.role,
+        favorites: state.favorites,
       }),
     }
   )

@@ -16,7 +16,15 @@ import { Modals } from '@/components/Modals';
 import { ToastContainer } from '@/components/Toast';
 import { CommandPalette } from '@/components/CommandPalette';
 import { LoginScreen } from '@/components/LoginScreen';
+import { ConflictResolver, SyncIndicator } from '@/components/ConflictResolver';
 import { InventoryItem, LogItem, UserProfile } from '@/types';
+import { 
+  detectConflict, 
+  getLastSyncTime, 
+  setLastSyncTime, 
+  addConflict,
+  clearSyncedChanges
+} from '@/lib/conflictResolution';
 
 type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'settings';
 
@@ -307,8 +315,27 @@ function App() {
     const unsubInv = onSnapshot(
       collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'),
       (snapshot) => {
+        const { inventory: localInventory } = useStore.getState();
+        const lastSync = getLastSyncTime();
+        
         const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as InventoryItem));
         items.sort((a, b) => a.name.localeCompare(b.name));
+        
+        // Check for conflicts between local and server versions
+        items.forEach(serverItem => {
+          const localItem = localInventory.find(i => i.id === serverItem.id);
+          if (localItem) {
+            const conflict = detectConflict(localItem, serverItem, lastSync);
+            if (conflict) {
+              addConflict(conflict);
+            }
+          }
+        });
+        
+        // Update sync time and clear synced changes
+        setLastSyncTime();
+        clearSyncedChanges();
+        
         setInventory(items);
         setLoading(false);
       },
@@ -398,6 +425,9 @@ function App() {
         onClose={() => setCommandPaletteOpen(false)}
         onNavigate={handleCommandSelect}
       />
+      
+      {/* Conflict Resolution */}
+      <ConflictResolver />
     </>
   );
 }

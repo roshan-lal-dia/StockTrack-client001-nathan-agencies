@@ -13,15 +13,18 @@ export default defineConfig({
       devOptions: {
         enabled: true // Enable PWA in dev mode for testing
       },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'robots.txt'],
+      includeAssets: ['favicon.svg', 'favicon-32x32.png', 'favicon-16x16.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'StockTrack Pro',
         short_name: 'StockTrack',
         description: 'Modern warehouse inventory management',
-        theme_color: '#3b82f6',
+        theme_color: '#6366f1',
         background_color: '#0f172a',
         display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
         start_url: '/',
+        id: '/',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -37,7 +40,7 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'maskable'
           }
         ]
       },
@@ -86,10 +89,24 @@ export default defineConfig({
               }
             }
           }
-        ]
+        ],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 // 5 MB limit
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          charts: ['recharts'],
+          pdf: ['jspdf', 'jspdf-autotable'],
+          utils: ['zustand', 'papaparse', 'html5-qrcode']
+        }
+      }
+    }
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

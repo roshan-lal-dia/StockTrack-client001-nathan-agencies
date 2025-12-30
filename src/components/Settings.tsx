@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Moon, Sun, Monitor, Shield, Keyboard, Database, LogOut, Edit2, Check, X } from 'lucide-react';
+import { Moon, Sun, Monitor, Shield, Keyboard, Database, LogOut, Edit2, Check, X, Lock } from 'lucide-react';
 import { useThemeStore } from '@/store/useThemeStore';
 import { useStore } from '@/store/useStore';
 import { toast } from '@/store/useToastStore';
 import { auth, db } from '@/lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { ChangePinModal } from './PinVerification';
 
 export const Settings = () => {
   const { theme, setTheme } = useThemeStore();
@@ -12,6 +13,7 @@ export const Settings = () => {
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(userProfile?.name || '');
   const [signingOut, setSigningOut] = useState(false);
+  const [showChangePinModal, setShowChangePinModal] = useState(false);
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
@@ -257,6 +259,42 @@ export const Settings = () => {
         </div>
       </div>
 
+      {/* Admin Security */}
+      {userProfile?.role === 'admin' && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+            <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+              <Lock size={20} className="text-rose-500" />
+              Admin Security
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Manage PIN protection for sensitive operations
+            </p>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-slate-800 dark:text-white">Admin PIN</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Required for database cleanup and destructive actions
+                </p>
+              </div>
+              <button
+                onClick={() => setShowChangePinModal(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors"
+              >
+                Change PIN
+              </button>
+            </div>
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                <strong>Default PIN:</strong> 1234 — Change this for security!
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Data & Storage */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="p-6 border-b border-slate-100 dark:border-slate-700">
@@ -272,6 +310,12 @@ export const Settings = () => {
           </p>
         </div>
       </div>
+
+      {/* Change PIN Modal */}
+      <ChangePinModal
+        isOpen={showChangePinModal}
+        onClose={() => setShowChangePinModal(false)}
+      />
     </div>
   );
 };

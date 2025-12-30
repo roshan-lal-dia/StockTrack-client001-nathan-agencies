@@ -26,6 +26,10 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **CSV Import**: Bulk import products from spreadsheet files
 - **Dashboard Charts**: Visual analytics with activity trends, category distribution
 - **Print Labels**: Generate and print product labels with barcodes
+- **Favorite Items**: Star/pin frequently used items for quick access
+- **PDF Reports**: Generate inventory/logs reports with filters (date, category, low stock)
+- **Database Management**: PIN-protected log cleanup to prevent database bloat
+- **Conflict Resolution**: Handles concurrent updates with delta-based merging
 
 ## Offline & PWA Features
 
@@ -35,6 +39,17 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 3. **Optimistic Updates**: UI responds immediately, syncs in background
 4. **Cached Auth**: Users can access the app offline after first login
 5. **Offline Indicator**: Yellow banner shows when offline with sync message
+6. **Conflict Detection**: Detects when multiple users update the same item
+
+### Conflict Resolution
+When multiple users edit the same product (online or offline):
+- **Delta Tracking**: Quantity changes are tracked as deltas (+5, -3) not absolute values
+- **Conflict Detection**: When syncing, compares local vs server versions
+- **Resolution Options**:
+  - **Local**: Keep your changes, discard server
+  - **Server**: Accept server changes, discard yours
+  - **Merge** (recommended): Apply your deltas to the current server quantity
+- **Visual Indicator**: Shows pending changes and conflicts in sidebar
 
 ### PWA Installation
 - Install via browser's "Add to Home Screen" or install button
@@ -106,7 +121,15 @@ src/
 │   ├── Skeleton.tsx        # Loading skeleton components
 │   ├── ItemDetailDrawer.tsx # Item details side panel
 │   ├── LowStockAlerts.tsx  # Low stock notification components
-│   └── ImageUpload.tsx     # Image upload with Cloudinary integration
+│   ├── ImageUpload.tsx     # Image upload with Cloudinary integration
+│   ├── BarcodeScanner.tsx  # Camera-based barcode/QR scanning
+│   ├── CSVImport.tsx       # Bulk import products from CSV
+│   ├── DashboardCharts.tsx # Visual analytics charts
+│   ├── PrintLabels.tsx     # Generate printable product labels
+│   ├── PinVerification.tsx # PIN verification for sensitive operations
+│   ├── DatabaseAdmin.tsx   # Log cleanup and database management
+│   ├── ReportGenerator.tsx # PDF report generation with filters
+│   └── ConflictResolver.tsx # Concurrent update conflict resolution UI
 ├── store/
 │   ├── useStore.ts         # Main app state (Zustand)
 │   ├── useThemeStore.ts    # Theme persistence
@@ -114,7 +137,8 @@ src/
 ├── lib/
 │   ├── firebase.ts         # Firebase configuration
 │   ├── export.ts           # Data export utilities
-│   └── imageUtils.ts       # Cloudinary upload utilities
+│   ├── imageUtils.ts       # Cloudinary upload utilities
+│   └── conflictResolution.ts # Delta tracking and conflict detection
 ├── types/
 │   └── index.ts            # TypeScript interfaces
 ├── App.tsx                 # Main app with routing

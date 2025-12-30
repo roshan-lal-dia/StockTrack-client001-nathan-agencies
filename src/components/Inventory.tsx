@@ -13,7 +13,8 @@ import {
   X,
   ChevronDown,
   ScanBarcode,
-  Printer
+  Printer,
+  Star
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { InventoryItem } from '@/types';
@@ -27,10 +28,10 @@ interface InventoryProps {
 
 type SortField = 'name' | 'quantity' | 'category' | 'location';
 type SortOrder = 'asc' | 'desc';
-type StockFilter = 'all' | 'low' | 'ok' | 'out';
+type StockFilter = 'all' | 'low' | 'ok' | 'out' | 'favorites';
 
 export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
-  const { inventory, role } = useStore();
+  const { inventory, role, favorites, toggleFavorite } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [sortField, setSortField] = useState<SortField>('name');
@@ -82,6 +83,7 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
         if (stockFilter === 'out') return i.quantity === 0;
         if (stockFilter === 'low') return i.quantity > 0 && i.quantity <= i.minStock;
         if (stockFilter === 'ok') return i.quantity > i.minStock;
+        if (stockFilter === 'favorites') return favorites.includes(i.id);
         return true;
       });
     }
@@ -212,6 +214,7 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
                     className="w-full p-2 pr-8 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm appearance-none text-slate-700 dark:text-slate-200"
                   >
                     <option value="all">All</option>
+                    <option value="favorites">⭐ Favorites</option>
                     <option value="ok">In Stock</option>
                     <option value="low">Low Stock</option>
                     <option value="out">Out of Stock</option>
@@ -287,8 +290,21 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
       {/* PRODUCT GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-20 flex-1 overflow-y-auto">
         {filteredInventory.map(item => (
-          <div key={item.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
-             <div className="flex justify-between items-start mb-4">
+          <div key={item.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group relative">
+             {/* Favorite Button */}
+             <button
+               onClick={() => toggleFavorite(item.id)}
+               className={`absolute top-3 right-3 p-1.5 rounded-lg transition-colors ${
+                 favorites.includes(item.id)
+                   ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/30'
+                   : 'text-slate-300 hover:text-amber-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+               }`}
+               title={favorites.includes(item.id) ? 'Remove from favorites' : 'Add to favorites'}
+             >
+               <Star size={18} fill={favorites.includes(item.id) ? 'currentColor' : 'none'} />
+             </button>
+
+             <div className="flex justify-between items-start mb-4 pr-8">
                 <div>
                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase rounded tracking-wider">{item.category || 'Uncategorized'}</span>
