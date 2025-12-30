@@ -4,7 +4,8 @@ import {
   uploadToCloudinary, 
   validateImageFile, 
   isCloudinaryConfigured,
-  UploadedImage
+  UploadedImage,
+  CLOUDINARY_FOLDERS
 } from '@/lib/imageUtils';
 
 interface ImageUploadProps {
@@ -20,7 +21,7 @@ export const ImageUpload = ({
   currentImageUrl,
   onUpload,
   onRemove,
-  folder = 'stocktrack/products',
+  folder = CLOUDINARY_FOLDERS.PRODUCTS,
   label = 'Product Image',
   className = '',
 }: ImageUploadProps) => {
@@ -226,7 +227,7 @@ export const AttachmentUpload = ({
 
     setIsUploading(true);
     try {
-      const uploaded = await uploadToCloudinary(file, 'stocktrack/attachments');
+      const uploaded = await uploadToCloudinary(file, CLOUDINARY_FOLDERS.TRANSACTIONS);
       onUpload(uploaded);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');

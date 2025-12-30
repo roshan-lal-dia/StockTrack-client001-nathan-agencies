@@ -1,13 +1,22 @@
 /**
  * Image utilities using Cloudinary for cloud storage
  * 
- * Cloudinary Free Tier (Spark equivalent):
- * - 25GB storage
- * - 25GB bandwidth/month
+ * Cloudinary Free Tier:
+ * - 25 credits/month
  * - Automatic optimization & CDN
+ * 
+ * Folder organization:
+ * - stocktrack/products - Product images
+ * - stocktrack/transactions - Transaction attachments (receipts, invoices)
  * 
  * We store only URLs in Firestore (tiny strings), images in Cloudinary
  */
+
+// Folder constants for organization
+export const CLOUDINARY_FOLDERS = {
+  PRODUCTS: 'stocktrack/product',
+  TRANSACTIONS: 'stocktrack/inventory',
+} as const;
 
 export interface CloudinaryConfig {
   cloudName: string;
@@ -36,11 +45,13 @@ export const getCloudinaryConfig = (): CloudinaryConfig | null => {
 
 /**
  * Upload image to Cloudinary
+ * @param file - File to upload
+ * @param folder - Folder path (use CLOUDINARY_FOLDERS constants)
  * Returns URLs to store in Firestore
  */
 export const uploadToCloudinary = async (
   file: File,
-  folder: string = 'stocktrack'
+  folder: string = CLOUDINARY_FOLDERS.PRODUCTS
 ): Promise<UploadedImage> => {
   const config = getCloudinaryConfig();
   

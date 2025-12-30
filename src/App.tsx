@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { onSnapshot, collection, doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useStore } from '@/store/useStore';
@@ -15,6 +15,7 @@ import { Settings } from '@/components/Settings';
 import { Modals } from '@/components/Modals';
 import { ToastContainer } from '@/components/Toast';
 import { CommandPalette } from '@/components/CommandPalette';
+import { LoginScreen } from '@/components/LoginScreen';
 import { InventoryItem, LogItem, UserProfile } from '@/types';
 
 type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'settings';
@@ -23,7 +24,7 @@ function App() {
   const { 
     user, userProfile, setUser, setUserProfile, setRole, 
     setInventory, setLogs, setUsersList, setLoading, 
-    loading, role, setIsOffline 
+    loading, role, setIsOffline, isFirebaseConfigured
   } = useStore();
 
   const [view, setView] = useState<ViewType>('dashboard');
@@ -31,6 +32,8 @@ function App() {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [initialTransactionType, setInitialTransactionType] = useState<'in' | 'out'>('in');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
@@ -157,36 +160,19 @@ function App() {
         setRole('admin');
       }
       setLoading(false);
+      setAuthChecked(true);
       return;
     }
 
     // Online mode - use Firebase
     useStore.getState().setIsFirebaseConfigured(true);
-    
-    const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (err) {
-        console.error("Auth Error", err);
-        // Fall back to offline mode on auth error
-        useStore.getState().setIsFirebaseConfigured(false);
-        if (!userProfile) {
-          setUserProfile({
-            uid: 'local-user',
-            role: 'admin',
-            name: 'Local Admin',
-            lastActive: new Date().toISOString()
-          });
-          setRole('admin');
-        }
-        setLoading(false);
-      }
-    };
-    initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      setAuthChecked(true);
       setUser(u);
+      
       if (u) {
+        setShowLogin(false);
         try {
           const userRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', u.uid);
           const snap = await getDoc(userRef);
@@ -195,15 +181,27 @@ function App() {
             const data = snap.data() as UserProfile;
             setUserProfile(data);
             setRole(data.role);
+            
+            // Update last active
+            await setDoc(userRef, { lastActive: serverTimestamp() }, { merge: true });
           } else {
+            // New user - check for pending name from registration
+            const pendingName = localStorage.getItem('pendingUserName');
+            localStorage.removeItem('pendingUserName');
+            
+            // Determine display name
+            const displayName = pendingName || u.displayName || (u.email ? u.email.split('@')[0] : `User ${u.uid.substring(0, 4)}`);
+            
             const newProfile: UserProfile = {
               uid: u.uid,
-              role: 'staff',
-              name: `User ${u.uid.substring(0, 4)}`,
+              role: 'staff', // Default to staff, admin can promote
+              name: displayName,
+              email: u.email || undefined,
               lastActive: serverTimestamp() as Timestamp
             };
             await setDoc(userRef, newProfile);
-            setUserProfile(newProfile);
+            setUserProfile({ ...newProfile, lastActive: new Date().toISOString() });
+            setRole(newProfile.role);
           }
           setLoading(false);
         } catch (err) {
@@ -222,6 +220,8 @@ function App() {
           setLoading(false);
         }
       } else {
+        // No user - show login screen
+        setShowLogin(true);
         setLoading(false);
       }
     });
@@ -283,6 +283,11 @@ function App() {
       <p className="font-medium">Loading Warehouse Data...</p>
     </div>
   );
+
+  // Show login screen if Firebase is configured but no user
+  if (isFirebaseConfigured && showLogin && authChecked) {
+    return <LoginScreen onAuthSuccess={() => setShowLogin(false)} />;
+  }
 
   return (
     <>

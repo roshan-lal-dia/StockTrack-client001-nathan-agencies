@@ -170,25 +170,22 @@ export const getOptimizedUrl = (url: string, maxWidth = 800) => { ... }
 
 ### Folder Organization
 
-The folder is set in your upload preset OR dynamically by the app code.
+Uploads are automatically organized into folders:
 
-**Option A: Single Folder (Simplest)**
-In your upload preset, set Folder to: `stocktrack`
-All uploads go to one folder.
+| Folder | Purpose |
+|--------|---------|
+| `stocktrack/products` | Product images |
+| `stocktrack/transactions` | Transaction attachments (receipts, invoices) |
 
-**Option B: Organized Folders (Set in App)**
-Leave the preset folder blank. The app code in `imageUtils.ts` specifies:
-- `stocktrack/products` for product images  
-- `stocktrack/transactions` for transaction attachments
+These folders are created automatically when you upload. You can browse them in your Cloudinary **Media Library**.
 
-To change folders, edit the `uploadToCloudinary()` function in `src/lib/imageUtils.ts`:
+The folder structure is defined in `src/lib/imageUtils.ts`:
 
 ```typescript
-// Current default folder
-export const uploadToCloudinary = async (
-  file: File,
-  folder: string = 'stocktrack'  // Change this default
-): Promise<UploadedImage> => {
+export const CLOUDINARY_FOLDERS = {
+  PRODUCTS: 'stocktrack/products',
+  TRANSACTIONS: 'stocktrack/transactions',
+} as const;
 ```
 
 This keeps your Cloudinary media library organized and easy to browse.

@@ -4,9 +4,13 @@ import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { InventoryItem } from '@/types';
+
+// Generate a unique ID for offline mode
+const generateId = () => `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 export const RapidReceive = () => {
-  const { inventory, userProfile } = useStore();
+  const { inventory, userProfile, isFirebaseConfigured, addInventoryItem, updateInventoryItem, addLog } = useStore();
   const { addToast } = useToastStore();
   const [localName, setLocalName] = useState('');
   const [localQty, setLocalQty] = useState('');
@@ -19,27 +23,67 @@ export const RapidReceive = () => {
     e.preventDefault();
     if (!localName || !localQty) return;
     const qty = parseInt(localQty);
-    if (isNaN(qty)) return;
+    if (isNaN(qty) || qty <= 0) return;
 
     const existing = inventory.find(i => i.name.toLowerCase() === localName.toLowerCase());
     
     try {
-      if (existing) {
-        const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', existing.id);
-        await updateDoc(ref, { 
-          quantity: increment(qty),
-          lastUpdated: serverTimestamp()
-        });
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
-          type: 'in', itemName: existing.name, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
-        });
+      if (isFirebaseConfigured) {
+        // Online mode - use Firebase
+        if (existing) {
+          const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', existing.id);
+          await updateDoc(ref, { 
+            quantity: increment(qty),
+            lastUpdated: serverTimestamp()
+          });
+          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+            type: 'in', itemName: existing.name, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
+          });
+        } else {
+          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
+            name: localName, category: 'Uncategorized', quantity: qty, minStock: 5, location: 'Receiving', notes: '', lastUpdated: serverTimestamp()
+          });
+          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+            type: 'create', itemName: localName, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
+          });
+        }
       } else {
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
-          name: localName, category: 'Uncategorized', quantity: qty, minStock: 5, location: 'Receiving', notes: '', lastUpdated: serverTimestamp()
-        });
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
-          type: 'create', itemName: localName, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
-        });
+        // Offline mode - use local storage
+        const now = new Date().toISOString();
+        if (existing) {
+          updateInventoryItem(existing.id, {
+            quantity: existing.quantity + qty,
+            lastUpdated: now
+          });
+          addLog({
+            id: generateId(),
+            type: 'in',
+            itemName: existing.name,
+            quantity: qty,
+            user: userProfile?.name || 'Local User',
+            timestamp: now
+          });
+        } else {
+          const newItem: InventoryItem = {
+            id: generateId(),
+            name: localName,
+            category: 'Uncategorized',
+            quantity: qty,
+            minStock: 5,
+            location: 'Receiving',
+            notes: '',
+            lastUpdated: now
+          };
+          addInventoryItem(newItem);
+          addLog({
+            id: generateId(),
+            type: 'create',
+            itemName: localName,
+            quantity: qty,
+            user: userProfile?.name || 'Local User',
+            timestamp: now
+          });
+        }
       }
       
       setRecentAdds(prev => [{name: localName, qty}, ...prev].slice(0, 5));

@@ -4,6 +4,7 @@
 StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient warehouse inventory management. It features real-time synchronization, offline capabilities, role-based access control, and production-grade UX features.
 
 ## Key Features
+- **Multi-Auth Support**: Email/Password, Google Sign-In, and Demo mode (Anonymous)
 - **Dark Mode**: System-aware theme with manual override (light/dark/system)
 - **Command Palette**: Quick navigation with `Alt + K`
 - **Toast Notifications**: Non-blocking feedback for all actions
@@ -11,6 +12,7 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **Real-time Sync**: Firebase Firestore with offline persistence
 - **Data Portability**: Export to JSON/CSV, no vendor lock-in
 - **Role-based Access**: Admin and Staff roles with different permissions
+- **Team Management**: Admins can promote/demote users and manage access
 - **Keyboard Shortcuts**: Power-user features (Alt-based to avoid browser conflicts)
 - **Low Stock Alerts**: Visual badges and alerts for items below threshold
 - **Item Details Drawer**: Quick view of item info and history
@@ -18,6 +20,7 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **Loading Skeletons**: Smooth perceived performance
 - **Empty States**: Helpful guidance when no data
 - **Image Uploads**: Product photos and transaction attachments via Cloudinary
+- **Offline Mode**: Works without internet, syncs when back online
 
 ## Architecture
 
@@ -30,9 +33,10 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **Routing**: State-based view switching (Simple SPA)
 
 ### Backend (Firebase)
-- **Auth**: Anonymous Auth (upgradable to email/password)
+- **Auth**: Email/Password, Google Sign-In, Anonymous Auth
 - **Database**: Cloud Firestore
 - **Offline**: IndexedDB Persistence enabled
+- **Security**: Role-based Firestore rules
 
 ### Keyboard Shortcuts
 | Shortcut | Action |
@@ -59,13 +63,14 @@ All exports are generated client-side and downloaded directly to the user's devi
 src/
 ├── components/
 │   ├── Layout.tsx          # App shell with navigation
+│   ├── LoginScreen.tsx     # Authentication screen (Email/Password, Google, Demo)
 │   ├── Dashboard.tsx       # Overview stats and recent activity
 │   ├── Inventory.tsx       # Product list with advanced filters
 │   ├── RapidReceive.tsx    # Quick stock entry mode
 │   ├── Logs.tsx            # Audit trail table
 │   ├── Team.tsx            # User/role management (Admin)
 │   ├── Backup.tsx          # Export panel (Admin)
-│   ├── Settings.tsx        # User preferences & theme
+│   ├── Settings.tsx        # User preferences, theme & sign out
 │   ├── Modals.tsx          # Transaction/Edit dialogs
 │   ├── Toast.tsx           # Notification container
 │   ├── CommandPalette.tsx  # Quick search/navigation (Alt+K)
@@ -89,7 +94,8 @@ src/
 ├── main.tsx                # Entry point
 └── index.css               # Tailwind imports
 docs/
-└── FIREBASE_SETUP.md       # Firebase integration guide
+├── FIREBASE_SETUP.md       # Firebase integration guide
+└── CLOUDINARY_SETUP.md     # Cloudinary image upload guide
 ```
 
 ## Setup Instructions

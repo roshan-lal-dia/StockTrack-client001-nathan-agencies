@@ -74,5 +74,7 @@ export interface UserProfile {
   uid: string;
   role: Role;
   name: string;
+  email?: string;
+  photoUrl?: string;
   lastActive: DateField;
 }
