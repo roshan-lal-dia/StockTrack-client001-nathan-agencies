@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { onSnapshot, collection, doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useStore } from '@/store/useStore';
+import { useThemeStore } from '@/store/useThemeStore';
 import { Layout } from '@/components/Layout';
 import { Dashboard } from '@/components/Dashboard';
 import { Inventory } from '@/components/Inventory';
@@ -10,8 +11,13 @@ import { RapidReceive } from '@/components/RapidReceive';
 import { Logs } from '@/components/Logs';
 import { Team } from '@/components/Team';
 import { Backup } from '@/components/Backup';
+import { Settings } from '@/components/Settings';
 import { Modals } from '@/components/Modals';
+import { ToastContainer } from '@/components/Toast';
+import { CommandPalette } from '@/components/CommandPalette';
 import { InventoryItem, LogItem, UserProfile } from '@/types';
+
+type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'settings';
 
 function App() {
   const { 
@@ -19,12 +25,91 @@ function App() {
     setInventory, setLogs, setUsersList, setLoading, 
     loading, role 
   } = useStore();
+  
+  const { theme, resolvedTheme } = useThemeStore();
 
-  const [view, setView] = useState<'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup'>('dashboard');
+  const [view, setView] = useState<ViewType>('dashboard');
   const [activeModal, setActiveModal] = useState<'none' | 'add' | 'transaction' | 'edit'>('none');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+
+  // Apply theme to document
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.classList.toggle('dark', prefersDark);
+    } else {
+      root.classList.toggle('dark', theme === 'dark');
+    }
+  }, [theme, resolvedTheme]);
+
+  // Listen for system theme changes
+  useEffect(() => {
+    if (theme !== 'system') return;
+    
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => {
+      document.documentElement.classList.toggle('dark', e.matches);
+    };
+    
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, [theme]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Command palette: Cmd/Ctrl + K
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+      
+      // New item: Cmd/Ctrl + N (when not in an input)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n' && 
+          !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        e.preventDefault();
+        setActiveModal('add');
+      }
+      
+      // Escape to close modals
+      if (e.key === 'Escape') {
+        if (commandPaletteOpen) setCommandPaletteOpen(false);
+        else if (activeModal !== 'none') {
+          setActiveModal('none');
+          setSelectedItem(null);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [commandPaletteOpen, activeModal]);
+
+  // Command palette navigation handler
+  const handleCommandSelect = useCallback((command: string) => {
+    switch (command) {
+      case 'dashboard':
+      case 'inventory':
+      case 'history':
+      case 'rapid-receive':
+      case 'team':
+      case 'backup':
+      case 'settings':
+        setView(command as ViewType);
+        break;
+      case 'new-item':
+        setActiveModal('add');
+        break;
+      case 'toggle-theme':
+        useThemeStore.getState().toggleTheme();
+        break;
+    }
+    setCommandPaletteOpen(false);
+  }, []);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -46,8 +131,6 @@ function App() {
           const data = snap.data() as UserProfile;
           setUserProfile(data);
           setRole(data.role);
-          // Update last active
-          // Note: This might trigger a write every refresh, which is fine for this scale
         } else {
           const newProfile: UserProfile = {
             uid: u.uid,
@@ -100,35 +183,50 @@ function App() {
   }, [user]);
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-400">
-      <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center text-slate-400">
+      <div className="w-12 h-12 border-4 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 rounded-full animate-spin mb-4" />
       <p className="font-medium">Loading Warehouse Data...</p>
     </div>
   );
 
   return (
-    <Layout currentView={view} onViewChange={setView}>
-      {view === 'dashboard' && <Dashboard onNavigate={setView} />}
-      {view === 'inventory' && (
-        <Inventory 
-          onNavigate={setView} 
-          onOpenModal={(type, item) => {
-            setActiveModal(type);
-            setSelectedItem(item || null);
-          }} 
-        />
-      )}
-      {view === 'rapid-receive' && <RapidReceive />}
-      {view === 'history' && <Logs />}
-      {view === 'team' && role === 'admin' && <Team />}
-      {view === 'backup' && role === 'admin' && <Backup />}
+    <>
+      <Layout 
+        currentView={view} 
+        onViewChange={setView}
+        onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+      >
+        {view === 'dashboard' && <Dashboard onNavigate={setView} />}
+        {view === 'inventory' && (
+          <Inventory 
+            onNavigate={setView} 
+            onOpenModal={(type, item) => {
+              setActiveModal(type);
+              setSelectedItem(item || null);
+            }} 
+          />
+        )}
+        {view === 'rapid-receive' && <RapidReceive />}
+        {view === 'history' && <Logs />}
+        {view === 'team' && role === 'admin' && <Team />}
+        {view === 'backup' && role === 'admin' && <Backup />}
+        {view === 'settings' && <Settings />}
 
-      <Modals 
-        activeModal={activeModal} 
-        selectedItem={selectedItem} 
-        onClose={() => { setActiveModal('none'); setSelectedItem(null); }} 
+        <Modals 
+          activeModal={activeModal} 
+          selectedItem={selectedItem} 
+          onClose={() => { setActiveModal('none'); setSelectedItem(null); }} 
+        />
+      </Layout>
+
+      {/* Global Components */}
+      <ToastContainer />
+      <CommandPalette 
+        isOpen={commandPaletteOpen} 
+        onClose={() => setCommandPaletteOpen(false)}
+        onNavigate={handleCommandSelect}
       />
-    </Layout>
+    </>
   );
 }
 
