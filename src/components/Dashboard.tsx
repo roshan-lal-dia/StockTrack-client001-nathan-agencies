@@ -5,6 +5,7 @@ import {
   Truck 
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
+import { formatDate } from '@/types';
 
 interface DashboardProps {
   onNavigate: (view: 'history' | 'team') => void;
@@ -86,7 +87,7 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
                    </div>
                    <div>
                       <p className="font-medium text-slate-800 dark:text-white">{log.itemName}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{log.user} • {log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleTimeString() : 'Pending...'}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{log.user} • {formatDate(log.timestamp, 'time')}</p>
                    </div>
                 </div>
                 <span className="font-mono font-bold text-slate-600 dark:text-slate-300">

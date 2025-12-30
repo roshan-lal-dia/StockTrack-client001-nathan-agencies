@@ -3,7 +3,7 @@ import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { onSnapshot, collection, doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useStore } from '@/store/useStore';
-import { useThemeStore } from '@/store/useThemeStore';
+import { initializeTheme, useThemeStore } from '@/store/useThemeStore';
 import { Layout } from '@/components/Layout';
 import { Dashboard } from '@/components/Dashboard';
 import { Inventory } from '@/components/Inventory';
@@ -21,51 +21,40 @@ type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team'
 
 function App() {
   const { 
-    user, setUser, setUserProfile, setRole, 
+    user, userProfile, setUser, setUserProfile, setRole, 
     setInventory, setLogs, setUsersList, setLoading, 
-    loading, role 
+    loading, role, setIsOffline 
   } = useStore();
-  
-  const { theme, resolvedTheme } = useThemeStore();
 
   const [view, setView] = useState<ViewType>('dashboard');
   const [activeModal, setActiveModal] = useState<'none' | 'add' | 'transaction' | 'edit'>('none');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [initialTransactionType, setInitialTransactionType] = useState<'in' | 'out'>('in');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
-  // Apply theme to document
+  // Initialize theme once on mount
   useEffect(() => {
-    const root = document.documentElement;
-    let shouldBeDark = false;
-    
-    if (theme === 'system') {
-      shouldBeDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    } else {
-      shouldBeDark = theme === 'dark';
-    }
-    
-    // Force remove and add to ensure proper toggle
-    if (shouldBeDark) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  }, [theme, resolvedTheme]);
+    initializeTheme();
+  }, []);
 
-  // Listen for system theme changes
+  // Online/Offline detection
   useEffect(() => {
-    if (theme !== 'system') return;
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
     
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => {
-      document.documentElement.classList.toggle('dark', e.matches);
+    // Set initial state
+    setIsOffline(!navigator.onLine);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
-    
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
-  }, [theme]);
+  }, [setIsOffline]);
 
   // Global keyboard shortcuts (using Alt to avoid browser conflicts)
   useEffect(() => {
@@ -139,18 +128,58 @@ function App() {
         setActiveModal('add');
         break;
       case 'toggle-theme':
-        useThemeStore.getState().toggleTheme();
+        const currentTheme = useThemeStore.getState().theme;
+        const nextTheme = currentTheme === 'light' ? 'dark' : currentTheme === 'dark' ? 'system' : 'light';
+        useThemeStore.getState().setTheme(nextTheme);
         break;
     }
     setCommandPaletteOpen(false);
   }, []);
 
   useEffect(() => {
+    // Check if Firebase is properly configured
+    const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+    const isConfigured = apiKey && apiKey !== 'YOUR_API_KEY' && !apiKey.includes('YOUR_');
+    
+    if (!isConfigured) {
+      // Offline mode - no Firebase
+      console.log('Firebase not configured - running in offline mode');
+      useStore.getState().setIsFirebaseConfigured(false);
+      
+      // Set default user profile for offline mode
+      if (!userProfile) {
+        setUserProfile({
+          uid: 'local-user',
+          role: 'admin',
+          name: 'Local Admin',
+          lastActive: new Date().toISOString()
+        });
+        setRole('admin');
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Online mode - use Firebase
+    useStore.getState().setIsFirebaseConfigured(true);
+    
     const initAuth = async () => {
       try {
         await signInAnonymously(auth);
       } catch (err) {
         console.error("Auth Error", err);
+        // Fall back to offline mode on auth error
+        useStore.getState().setIsFirebaseConfigured(false);
+        if (!userProfile) {
+          setUserProfile({
+            uid: 'local-user',
+            role: 'admin',
+            name: 'Local Admin',
+            lastActive: new Date().toISOString()
+          });
+          setRole('admin');
+        }
+        setLoading(false);
       }
     };
     initAuth();
@@ -158,22 +187,39 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        const userRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', u.uid);
-        const snap = await getDoc(userRef);
-        
-        if (snap.exists()) {
-          const data = snap.data() as UserProfile;
-          setUserProfile(data);
-          setRole(data.role);
-        } else {
-          const newProfile: UserProfile = {
-            uid: u.uid,
-            role: 'staff',
-            name: `User ${u.uid.substring(0, 4)}`,
-            lastActive: serverTimestamp() as Timestamp
-          };
-          await setDoc(userRef, newProfile);
-          setUserProfile(newProfile);
+        try {
+          const userRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', u.uid);
+          const snap = await getDoc(userRef);
+          
+          if (snap.exists()) {
+            const data = snap.data() as UserProfile;
+            setUserProfile(data);
+            setRole(data.role);
+          } else {
+            const newProfile: UserProfile = {
+              uid: u.uid,
+              role: 'staff',
+              name: `User ${u.uid.substring(0, 4)}`,
+              lastActive: serverTimestamp() as Timestamp
+            };
+            await setDoc(userRef, newProfile);
+            setUserProfile(newProfile);
+          }
+          setLoading(false);
+        } catch (err) {
+          console.error("Firestore Error", err);
+          // Fall back to offline mode
+          useStore.getState().setIsFirebaseConfigured(false);
+          if (!userProfile) {
+            setUserProfile({
+              uid: 'local-user',
+              role: 'admin',
+              name: 'Local Admin',
+              lastActive: new Date().toISOString()
+            });
+            setRole('admin');
+          }
+          setLoading(false);
         }
       } else {
         setLoading(false);
@@ -183,8 +229,10 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  // Firestore listeners - only active when Firebase is configured
   useEffect(() => {
-    if (!user) return;
+    const { isFirebaseConfigured } = useStore.getState();
+    if (!user || !isFirebaseConfigured) return;
 
     const unsubInv = onSnapshot(
       collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'),
@@ -193,6 +241,9 @@ function App() {
         items.sort((a, b) => a.name.localeCompare(b.name));
         setInventory(items);
         setLoading(false);
+      },
+      (error) => {
+        console.error('Inventory listener error:', error);
       }
     );
 
@@ -200,8 +251,15 @@ function App() {
       collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'),
       (snapshot) => {
         const logsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as LogItem));
-        logsData.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+        logsData.sort((a, b) => {
+          const aTime = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : (a.timestamp?.seconds || 0) * 1000;
+          const bTime = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : (b.timestamp?.seconds || 0) * 1000;
+          return bTime - aTime;
+        });
         setLogs(logsData);
+      },
+      (error) => {
+        console.error('Logs listener error:', error);
       }
     );
 
@@ -210,6 +268,9 @@ function App() {
       (snapshot) => {
         const uList = snapshot.docs.map(d => ({ ...d.data() } as UserProfile));
         setUsersList(uList);
+      },
+      (error) => {
+        console.error('Users listener error:', error);
       }
     );
 
@@ -234,9 +295,10 @@ function App() {
         {view === 'inventory' && (
           <Inventory 
             onNavigate={setView} 
-            onOpenModal={(type, item) => {
+            onOpenModal={(type, item, txType) => {
               setActiveModal(type);
               setSelectedItem(item || null);
+              if (txType) setInitialTransactionType(txType);
             }} 
           />
         )}
@@ -248,8 +310,9 @@ function App() {
 
         <Modals 
           activeModal={activeModal} 
-          selectedItem={selectedItem} 
-          onClose={() => { setActiveModal('none'); setSelectedItem(null); }} 
+          selectedItem={selectedItem}
+          initialTransactionType={initialTransactionType}
+          onClose={() => { setActiveModal('none'); setSelectedItem(null); setInitialTransactionType('in'); }} 
         />
       </Layout>
 

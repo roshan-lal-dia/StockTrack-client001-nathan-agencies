@@ -4,29 +4,11 @@ import { useStore } from '@/store/useStore';
 import { toast } from '@/store/useToastStore';
 
 export const Settings = () => {
-  const { theme, setTheme, setResolvedTheme } = useThemeStore();
+  const { theme, setTheme } = useThemeStore();
   const { userProfile } = useStore();
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
-    
-    if (newTheme === 'system') {
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setResolvedTheme(isDark ? 'dark' : 'light');
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    } else {
-      setResolvedTheme(newTheme);
-      if (newTheme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    }
-    
     toast.success(`Theme changed to ${newTheme}`);
   };
 

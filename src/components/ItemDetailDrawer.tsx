@@ -1,5 +1,5 @@
 import { X, Package, MapPin, Tag, Clock, ArrowDownCircle, Edit, Trash2 } from 'lucide-react';
-import { InventoryItem } from '@/types';
+import { InventoryItem, formatDate } from '@/types';
 import { useStore } from '@/store/useStore';
 
 interface ItemDetailDrawerProps {
@@ -127,9 +127,7 @@ export const ItemDetailDrawer = ({
               <div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Last Updated</p>
                 <p className="font-medium text-slate-800 dark:text-white">
-                  {item.lastUpdated 
-                    ? new Date(item.lastUpdated.seconds * 1000).toLocaleString() 
-                    : 'Unknown'}
+                  {formatDate(item.lastUpdated, 'datetime')}
                 </p>
               </div>
             </div>
@@ -164,7 +162,7 @@ export const ItemDetailDrawer = ({
                         {log.type === 'in' ? 'Received' : log.type === 'out' ? 'Dispatched' : 'Created'} {log.quantity} units
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {log.user} • {log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleDateString() : 'Pending'}
+                        {log.user} • {formatDate(log.timestamp, 'date')}
                       </p>
                     </div>
                   </div>

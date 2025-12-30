@@ -1,4 +1,5 @@
 import { useStore } from '@/store/useStore';
+import { formatDate } from '@/types';
 
 export const Logs = () => {
   const { logs } = useStore();
@@ -22,7 +23,7 @@ export const Logs = () => {
                  {logs.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          {log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleString() : 'Pending sync...'}
+                          {formatDate(log.timestamp, 'datetime')}
                        </td>
                        <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase

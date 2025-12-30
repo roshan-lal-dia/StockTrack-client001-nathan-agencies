@@ -9,11 +9,18 @@ import { db } from '@/lib/firebase';
 interface ModalsProps {
   activeModal: 'none' | 'add' | 'transaction' | 'edit';
   selectedItem: InventoryItem | null;
+  initialTransactionType?: 'in' | 'out';
   onClose: () => void;
 }
 
-export const Modals = ({ activeModal, selectedItem, onClose }: ModalsProps) => {
-  const { userProfile, inventory } = useStore();
+// Generate a unique ID for offline mode
+const generateId = () => `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in', onClose }: ModalsProps) => {
+  const { 
+    userProfile, inventory, isFirebaseConfigured,
+    addInventoryItem, updateInventoryItem, addLog 
+  } = useStore();
   const { addToast } = useToastStore();
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
@@ -45,40 +52,72 @@ export const Modals = ({ activeModal, selectedItem, onClose }: ModalsProps) => {
       setFormData({ name: '', category: '', quantity: 0, minStock: 5, location: '', notes: '' });
     }
     setTransactionAmount('');
-    setTransactionType('in');
-  }, [activeModal, selectedItem]);
+    setTransactionType(initialTransactionType);
+  }, [activeModal, selectedItem, initialTransactionType]);
 
   const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      if (activeModal === 'edit' && selectedItem) {
-        const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
-        await updateDoc(ref, {
-          ...formData,
-          lastUpdated: serverTimestamp()
-        });
-        addToast('Product updated successfully', 'success');
-      } else {
-        const exists = inventory.find(i => i.name.toLowerCase() === formData.name.toLowerCase());
-        if (exists) {
-          addToast('Product with this name already exists', 'error');
-          return;
-        }
+    
+    const exists = inventory.find(i => 
+      i.name.toLowerCase() === formData.name.toLowerCase() && 
+      (activeModal !== 'edit' || i.id !== selectedItem?.id)
+    );
+    if (exists) {
+      addToast('Product with this name already exists', 'error');
+      return;
+    }
 
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
-          ...formData,
-          lastUpdated: serverTimestamp()
-        });
-        
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
-          type: 'create',
-          itemName: formData.name,
-          quantity: formData.quantity,
-          user: userProfile?.name || 'Unknown',
-          timestamp: serverTimestamp()
-        });
-        addToast('Product created successfully', 'success');
+    try {
+      if (isFirebaseConfigured) {
+        // Online mode - use Firebase
+        if (activeModal === 'edit' && selectedItem) {
+          const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
+          await updateDoc(ref, {
+            ...formData,
+            lastUpdated: serverTimestamp()
+          });
+        } else {
+          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
+            ...formData,
+            lastUpdated: serverTimestamp()
+          });
+          
+          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+            type: 'create',
+            itemName: formData.name,
+            quantity: formData.quantity,
+            user: userProfile?.name || 'Unknown',
+            timestamp: serverTimestamp()
+          });
+        }
+      } else {
+        // Offline mode - use local storage
+        const now = new Date().toISOString();
+        if (activeModal === 'edit' && selectedItem) {
+          updateInventoryItem(selectedItem.id, {
+            ...formData,
+            lastUpdated: now
+          });
+        } else {
+          const newItem: InventoryItem = {
+            id: generateId(),
+            ...formData,
+            lastUpdated: now
+          };
+          addInventoryItem(newItem);
+          
+          addLog({
+            id: generateId(),
+            type: 'create',
+            itemName: formData.name,
+            quantity: formData.quantity,
+            user: userProfile?.name || 'Local User',
+            timestamp: now
+          });
+        }
       }
+      
+      addToast(activeModal === 'edit' ? 'Product updated successfully' : 'Product created successfully', 'success');
       onClose();
     } catch (err) {
       console.error(err);
@@ -97,19 +136,42 @@ export const Modals = ({ activeModal, selectedItem, onClose }: ModalsProps) => {
     }
 
     try {
-      const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
-      await updateDoc(ref, {
-        quantity: transactionType === 'in' ? increment(qty) : increment(-qty),
-        lastUpdated: serverTimestamp()
-      });
+      const newQuantity = transactionType === 'in' 
+        ? selectedItem.quantity + qty 
+        : selectedItem.quantity - qty;
 
-      await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
-        type: transactionType,
-        itemName: selectedItem.name,
-        quantity: qty,
-        user: userProfile?.name || 'Unknown',
-        timestamp: serverTimestamp()
-      });
+      if (isFirebaseConfigured) {
+        // Online mode - use Firebase
+        const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
+        await updateDoc(ref, {
+          quantity: transactionType === 'in' ? increment(qty) : increment(-qty),
+          lastUpdated: serverTimestamp()
+        });
+
+        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+          type: transactionType,
+          itemName: selectedItem.name,
+          quantity: qty,
+          user: userProfile?.name || 'Unknown',
+          timestamp: serverTimestamp()
+        });
+      } else {
+        // Offline mode - use local storage
+        const now = new Date().toISOString();
+        updateInventoryItem(selectedItem.id, {
+          quantity: newQuantity,
+          lastUpdated: now
+        });
+        
+        addLog({
+          id: generateId(),
+          type: transactionType,
+          itemName: selectedItem.name,
+          quantity: qty,
+          user: userProfile?.name || 'Local User',
+          timestamp: now
+        });
+      }
 
       addToast(`${transactionType === 'in' ? 'Received' : 'Dispatched'} ${qty} units`, 'success');
       onClose();

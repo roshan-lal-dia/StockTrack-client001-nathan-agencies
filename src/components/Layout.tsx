@@ -26,11 +26,24 @@ interface LayoutProps {
 }
 
 export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalette }: LayoutProps) => {
-  const { userProfile, role, isOffline, inventory } = useStore();
+  const { userProfile, role, isOffline, isFirebaseConfigured, inventory } = useStore();
   const { addToast } = useToastStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const lowStockCount = inventory.filter(item => item.quantity <= item.minStock).length;
+
+  // Determine status text and color
+  const getStatusInfo = () => {
+    if (!isFirebaseConfigured) {
+      return { text: 'LOCAL', color: 'bg-amber-500' };
+    }
+    if (isOffline) {
+      return { text: 'OFFLINE', color: 'bg-rose-500' };
+    }
+    return { text: 'ONLINE', color: 'bg-emerald-500' };
+  };
+  
+  const statusInfo = getStatusInfo();
 
   const handleSignOut = async () => {
     try {
@@ -103,8 +116,8 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
             <div>
               <h1 className="text-lg font-bold tracking-tight">StockTrack</h1>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <div className={`w-2 h-2 rounded-full ${isOffline ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                <span className="text-[10px] font-medium uppercase tracking-wider">{isOffline ? 'Offline' : 'Online'}</span>
+                <div className={`w-2 h-2 rounded-full ${statusInfo.color}`} />
+                <span className="text-[10px] font-medium uppercase tracking-wider">{statusInfo.text}</span>
               </div>
             </div>
           </div>
@@ -132,7 +145,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
 
           <div className="space-y-1">
             <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
-            <NavItem view="inventory" icon={Package} label="Inventory" badge={lowStockCount} />
+            <NavItem view="inventory" icon={Package} label="Inventory" badge={inventory.length} />
             <NavItem view="rapid-receive" icon={Zap} label="Rapid Receive" highlight />
             <NavItem view="history" icon={History} label="Logs" />
             

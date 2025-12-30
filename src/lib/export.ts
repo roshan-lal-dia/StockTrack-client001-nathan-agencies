@@ -1,5 +1,6 @@
 import { useStore } from '@/store/useStore';
 import { format } from 'date-fns';
+import { parseDate } from '@/types';
 
 /**
  * Export utility functions for generating backups from the frontend.
@@ -80,14 +81,17 @@ export const exportLogsCSV = (): void => {
   const { logs } = useStore.getState();
   const timestamp = format(new Date(), 'yyyy-MM-dd');
   
-  const data = logs.map(log => ({
-    id: log.id,
-    type: log.type,
-    itemName: log.itemName,
-    quantity: log.quantity,
-    user: log.user,
-    timestamp: log.timestamp ? new Date(log.timestamp.seconds * 1000).toISOString() : ''
-  }));
+  const data = logs.map(log => {
+    const date = parseDate(log.timestamp);
+    return {
+      id: log.id,
+      type: log.type,
+      itemName: log.itemName,
+      quantity: log.quantity,
+      user: log.user,
+      timestamp: date ? date.toISOString() : ''
+    };
+  });
   
   exportToCSV(data, `logs_${timestamp}`);
 };

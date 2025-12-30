@@ -6,53 +6,60 @@ type Theme = 'light' | 'dark' | 'system';
 interface ThemeState {
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  toggleTheme: () => void;
-  resolvedTheme: 'light' | 'dark';
-  setResolvedTheme: (theme: 'light' | 'dark') => void;
 }
+
+/**
+ * Apply theme to the document
+ */
+const applyThemeToDOM = (theme: Theme) => {
+  const root = document.documentElement;
+  
+  if (theme === 'system') {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (prefersDark) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  } else if (theme === 'dark') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
+};
 
 export const useThemeStore = create<ThemeState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       theme: 'system',
-      resolvedTheme: 'light',
-      setTheme: (theme) => set({ theme }),
-      toggleTheme: () => {
-        const current = get().theme;
-        const next: Theme = current === 'light' ? 'dark' : current === 'dark' ? 'system' : 'light';
-        set({ theme: next });
+      setTheme: (theme) => {
+        applyThemeToDOM(theme);
+        set({ theme });
       },
-      setResolvedTheme: (resolvedTheme) => set({ resolvedTheme }),
     }),
     {
       name: 'stocktrack-theme',
+      onRehydrateStorage: () => (state) => {
+        // Apply theme when store is rehydrated from localStorage
+        if (state) {
+          applyThemeToDOM(state.theme);
+        }
+      },
     }
   )
 );
 
-// Initialize theme on load
+// Initialize theme on app load
 export const initializeTheme = () => {
-  const { theme, setResolvedTheme } = useThemeStore.getState();
+  const { theme } = useThemeStore.getState();
+  applyThemeToDOM(theme);
   
-  const applyTheme = (resolved: 'light' | 'dark') => {
-    setResolvedTheme(resolved);
-    if (resolved === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+  // Listen for system theme changes
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  mediaQuery.addEventListener('change', () => {
+    const currentTheme = useThemeStore.getState().theme;
+    if (currentTheme === 'system') {
+      applyThemeToDOM('system');
     }
-  };
-
-  if (theme === 'system') {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    applyTheme(mediaQuery.matches ? 'dark' : 'light');
-    
-    mediaQuery.addEventListener('change', (e) => {
-      if (useThemeStore.getState().theme === 'system') {
-        applyTheme(e.matches ? 'dark' : 'light');
-      }
-    });
-  } else {
-    applyTheme(theme);
-  }
+  });
 };

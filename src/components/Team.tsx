@@ -2,7 +2,7 @@ import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Role } from '@/types';
+import { Role, formatDate } from '@/types';
 
 export const Team = () => {
   const { usersList, user, role } = useStore();
@@ -48,7 +48,7 @@ export const Team = () => {
                       </div>
                       <div>
                          <p className="font-bold text-slate-800 dark:text-white">{u.name}</p>
-                         <p className="text-xs text-slate-500 dark:text-slate-400">Last Active: {u.lastActive ? new Date(u.lastActive.seconds * 1000).toLocaleDateString() : 'Never'}</p>
+                         <p className="text-xs text-slate-500 dark:text-slate-400">Last Active: {formatDate(u.lastActive, 'date')}</p>
                       </div>
                    </div>
                    <div className="flex items-center gap-2 ml-14 md:ml-0">
