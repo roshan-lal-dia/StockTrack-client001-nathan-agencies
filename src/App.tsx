@@ -16,7 +16,7 @@ import { Modals } from '@/components/Modals';
 import { ToastContainer } from '@/components/Toast';
 import { CommandPalette } from '@/components/CommandPalette';
 import { LoginScreen } from '@/components/LoginScreen';
-import { ConflictResolver, SyncIndicator } from '@/components/ConflictResolver';
+import { ConflictResolver } from '@/components/ConflictResolver';
 import { InventoryItem, LogItem, UserProfile } from '@/types';
 import { 
   detectConflict, 

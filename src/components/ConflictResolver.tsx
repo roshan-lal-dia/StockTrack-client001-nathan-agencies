@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { 
   AlertTriangle, 
   X, 
-  Check, 
   ArrowRight,
   GitMerge,
   Server,
