@@ -1,5 +1,5 @@
-import { X, ZoomIn, ZoomOut, Download, ExternalLink } from 'lucide-react';
-import { useState } from 'react';
+import { X, ZoomIn, ZoomOut, Download, ExternalLink, RotateCcw, Move } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface ImageViewerProps {
   isOpen: boolean;
@@ -10,13 +10,143 @@ interface ImageViewerProps {
 
 export const ImageViewer = ({ isOpen, onClose, imageUrl, title }: ImageViewerProps) => {
   const [zoom, setZoom] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imageError, setImageError] = useState(false);
+  const [initialPinchDistance, setInitialPinchDistance] = useState<number | null>(null);
+  const [initialZoom, setInitialZoom] = useState(1);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
-  if (!isOpen) return null;
+  // Reset state when opening
+  useEffect(() => {
+    if (isOpen) {
+      setZoom(1);
+      setPosition({ x: 0, y: 0 });
+      setImageError(false);
+    }
+  }, [isOpen]);
 
-  const handleZoomIn = () => setZoom(z => Math.min(z + 0.25, 3));
-  const handleZoomOut = () => setZoom(z => Math.max(z - 0.25, 0.5));
-  const handleReset = () => setZoom(1);
+  const handleZoomIn = useCallback(() => {
+    setZoom(z => Math.min(z + 0.5, 5));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom(z => {
+      const newZoom = Math.max(z - 0.5, 0.5);
+      // Reset position if zooming out to fit
+      if (newZoom <= 1) {
+        setPosition({ x: 0, y: 0 });
+      }
+      return newZoom;
+    });
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setZoom(1);
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
+  // Mouse wheel zoom
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.15 : 0.15;
+    setZoom(z => {
+      const newZoom = Math.max(0.5, Math.min(5, z + delta));
+      if (newZoom <= 1) {
+        setPosition({ x: 0, y: 0 });
+      }
+      return newZoom;
+    });
+  }, []);
+
+  // Mouse drag for panning
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (zoom > 1) {
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    }
+  }, [zoom, position]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isDragging && zoom > 1) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      });
+    }
+  }, [isDragging, dragStart, zoom]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Touch handling for pinch-to-zoom and pan
+  const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // Pinch start
+      const distance = getTouchDistance(e.touches);
+      setInitialPinchDistance(distance);
+      setInitialZoom(zoom);
+    } else if (e.touches.length === 1 && zoom > 1) {
+      // Pan start
+      setIsDragging(true);
+      setDragStart({
+        x: e.touches[0].clientX - position.x,
+        y: e.touches[0].clientY - position.y
+      });
+    }
+  }, [zoom, position]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && initialPinchDistance) {
+      // Pinch zoom
+      e.preventDefault();
+      const currentDistance = getTouchDistance(e.touches);
+      const scale = currentDistance / initialPinchDistance;
+      const newZoom = Math.max(0.5, Math.min(5, initialZoom * scale));
+      setZoom(newZoom);
+      if (newZoom <= 1) {
+        setPosition({ x: 0, y: 0 });
+      }
+    } else if (e.touches.length === 1 && isDragging && zoom > 1) {
+      // Pan
+      setPosition({
+        x: e.touches[0].clientX - dragStart.x,
+        y: e.touches[0].clientY - dragStart.y
+      });
+    }
+  }, [initialPinchDistance, initialZoom, isDragging, dragStart, zoom]);
+
+  const handleTouchEnd = useCallback(() => {
+    setInitialPinchDistance(null);
+    setIsDragging(false);
+  }, []);
+
+  // Double tap to zoom
+  const lastTapRef = useRef<number>(0);
+  const handleDoubleTap = useCallback((e: React.TouchEvent) => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      e.preventDefault();
+      if (zoom > 1) {
+        handleReset();
+      } else {
+        setZoom(2.5);
+      }
+    }
+    lastTapRef.current = now;
+  }, [zoom, handleReset]);
 
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -32,88 +162,116 @@ export const ImageViewer = ({ isOpen, onClose, imageUrl, title }: ImageViewerPro
     window.open(imageUrl, '_blank');
   };
 
+  if (!isOpen) return null;
+
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center animate-fade-in"
+      className="fixed inset-0 z-50 bg-black/95 flex flex-col animate-fade-in touch-none"
       onClick={onClose}
     >
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/50 to-transparent">
-        <h3 className="text-white font-medium truncate max-w-md">
+      <div className="flex-shrink-0 p-3 md:p-4 flex items-center justify-between bg-black/50 backdrop-blur-sm z-10">
+        <h3 className="text-white font-medium truncate max-w-[40%] text-sm md:text-base">
           {title || 'Image Preview'}
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <button
             onClick={(e) => { e.stopPropagation(); handleZoomOut(); }}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors"
             title="Zoom Out"
           >
-            <ZoomOut size={20} />
+            <ZoomOut size={18} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleReset(); }}
-            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors"
+            className="px-2 py-2 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs md:text-sm font-medium transition-colors min-w-[50px] text-center"
           >
             {Math.round(zoom * 100)}%
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleZoomIn(); }}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors"
             title="Zoom In"
           >
-            <ZoomIn size={20} />
+            <ZoomIn size={18} />
           </button>
-          <div className="w-px h-6 bg-white/20 mx-1" />
+          <div className="w-px h-5 bg-white/20 mx-0.5 hidden md:block" />
+          <button
+            onClick={(e) => { e.stopPropagation(); handleReset(); }}
+            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors hidden md:flex"
+            title="Reset View"
+          >
+            <RotateCcw size={18} />
+          </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleOpenNewTab(); }}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors hidden md:flex"
             title="Open in New Tab"
           >
-            <ExternalLink size={20} />
+            <ExternalLink size={18} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleDownload(); }}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors hidden md:flex"
             title="Download"
           >
-            <Download size={20} />
+            <Download size={18} />
           </button>
-          <div className="w-px h-6 bg-white/20 mx-1" />
+          <div className="w-px h-5 bg-white/20 mx-0.5" />
           <button
             onClick={onClose}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors"
             title="Close"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
       </div>
 
       {/* Image Container */}
       <div 
-        className="overflow-auto max-w-full max-h-full p-16"
+        ref={containerRef}
+        className={`flex-1 overflow-hidden flex items-center justify-center ${zoom > 1 ? 'cursor-grab' : 'cursor-zoom-in'} ${isDragging ? 'cursor-grabbing' : ''}`}
         onClick={(e) => e.stopPropagation()}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={(e) => { handleTouchStart(e); handleDoubleTap(e); }}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         {imageError ? (
-          <div className="text-white text-center">
+          <div className="text-white text-center p-8">
             <p className="text-lg">Failed to load image</p>
-            <p className="text-sm text-white/60 mt-2">{imageUrl}</p>
+            <p className="text-sm text-white/60 mt-2 break-all max-w-md">{imageUrl}</p>
           </div>
         ) : (
           <img
+            ref={imageRef}
             src={imageUrl}
             alt={title || 'Preview'}
-            className="max-w-none transition-transform duration-200"
-            style={{ transform: `scale(${zoom})` }}
+            className="max-w-full max-h-full object-contain select-none"
+            style={{ 
+              transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
+              transformOrigin: 'center center',
+              transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+            }}
             onError={() => setImageError(true)}
+            draggable={false}
           />
         )}
       </div>
 
-      {/* Click hint */}
-      <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/40 text-sm">
-        Click outside to close • Scroll to zoom
-      </p>
+      {/* Footer hints */}
+      <div className="flex-shrink-0 p-3 flex items-center justify-center gap-4 text-white/40 text-xs bg-black/50">
+        <span className="hidden md:inline">Scroll to zoom</span>
+        <span className="hidden md:inline">•</span>
+        <span className="hidden md:inline">{zoom > 1 ? 'Drag to pan' : 'Click outside to close'}</span>
+        <span className="md:hidden">Pinch to zoom • Double-tap to reset</span>
+        {zoom > 1 && <span className="flex items-center gap-1"><Move size={12} /> Drag to pan</span>}
+      </div>
     </div>
   );
 };
