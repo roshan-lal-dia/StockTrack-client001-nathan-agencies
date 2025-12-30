@@ -20,17 +20,40 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **Loading Skeletons**: Smooth perceived performance
 - **Empty States**: Helpful guidance when no data
 - **Image Uploads**: Product photos and transaction attachments via Cloudinary
+- **PWA Support**: Installable app with full offline capabilities
 - **Offline Mode**: Works without internet, syncs when back online
+
+## Offline & PWA Features
+
+### How Offline Works
+1. **Service Worker**: Caches all app assets for instant loading without internet
+2. **Firestore Persistence**: Data is cached in IndexedDB and syncs when online
+3. **Optimistic Updates**: UI responds immediately, syncs in background
+4. **Cached Auth**: Users can access the app offline after first login
+5. **Offline Indicator**: Yellow banner shows when offline with sync message
+
+### PWA Installation
+- Install via browser's "Add to Home Screen" or install button
+- Works as standalone app without browser chrome
+- Auto-updates when new version is available
+- Precaches all assets (JS, CSS, HTML, images)
+
+### Offline Limitations
+- **Image Uploads**: Require internet (Cloudinary)
+- **First Login**: Requires internet to authenticate
+- **New User Registration**: Requires internet
+- All other features work fully offline
 
 ## Architecture
 
 ### Frontend (React 19 + Vite 6)
 - **Framework**: React 19.2.1 with TypeScript 5.9.3
-- **Build Tool**: Vite 6.0.1 with @tailwindcss/vite
+- **Build Tool**: Vite 6.0.1 with @tailwindcss/vite + vite-plugin-pwa
 - **State Management**: Zustand 5.0.1 with persist middleware
 - **Styling**: Tailwind CSS 4.0 with dark mode support
 - **Icons**: Lucide React 0.454.0
 - **Routing**: State-based view switching (Simple SPA)
+- **PWA**: Service worker with Workbox for caching
 
 ### Backend (Firebase)
 - **Auth**: Email/Password, Google Sign-In, Anonymous Auth

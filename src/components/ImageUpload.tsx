@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, X, Image as ImageIcon, Loader2, AlertCircle, WifiOff } from 'lucide-react';
 import { 
   uploadToCloudinary, 
   validateImageFile, 
@@ -28,15 +28,36 @@ export const ImageUpload = ({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const cloudinaryConfigured = isCloudinaryConfigured();
+
+  // Track online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setError(null);
+
+    // Check if offline
+    if (!navigator.onLine) {
+      setError('Cannot upload images while offline');
+      return;
+    }
 
     // Validate file
     const validation = validateImageFile(file);
@@ -75,6 +96,26 @@ export const ImageUpload = ({
   };
 
   const displayUrl = preview || currentImageUrl;
+
+  // Show offline message
+  if (isOffline && !displayUrl) {
+    return (
+      <div className={`${className}`}>
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          {label}
+        </label>
+        <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-6 text-center bg-slate-50 dark:bg-slate-800/50">
+          <WifiOff className="mx-auto h-10 w-10 text-slate-400" />
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            Image upload unavailable offline
+          </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+            Connect to the internet to upload images
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!cloudinaryConfigured) {
     return (
@@ -210,15 +251,37 @@ export const AttachmentUpload = ({
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const cloudinaryConfigured = isCloudinaryConfigured();
+
+  // Track online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setError(null);
+    
+    // Check if offline
+    if (!navigator.onLine) {
+      setError('Cannot upload while offline');
+      return;
+    }
+    
     const validation = validateImageFile(file);
     if (!validation.valid) {
       setError(validation.error || 'Invalid file');
@@ -264,6 +327,13 @@ export const AttachmentUpload = ({
               <X size={16} className="text-slate-500" />
             </button>
           )}
+        </div>
+      ) : isOffline ? (
+        <div className="w-full p-3 border border-dashed border-amber-400 dark:border-amber-600 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center gap-2">
+          <WifiOff size={16} className="text-amber-500" />
+          <span className="text-sm text-amber-600 dark:text-amber-400">
+            Attachment unavailable offline
+          </span>
         </div>
       ) : (
         <button

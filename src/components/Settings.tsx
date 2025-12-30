@@ -57,8 +57,9 @@ export const Settings = () => {
     setSigningOut(true);
     try {
       await auth.signOut();
-      // Clear local storage
+      // Clear local storage including cached auth
       localStorage.removeItem('stocktrack-data');
+      localStorage.removeItem('stocktrack_cached_auth');
       toast.success('Signed out successfully');
       // The App.tsx onAuthStateChanged will handle showing login screen
     } catch (err) {

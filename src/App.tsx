@@ -167,6 +167,27 @@ function App() {
     // Online mode - use Firebase
     useStore.getState().setIsFirebaseConfigured(true);
 
+    // Check for cached auth state for offline access
+    const cachedAuth = localStorage.getItem('stocktrack_cached_auth');
+    const isOffline = !navigator.onLine;
+
+    if (isOffline && cachedAuth) {
+      // Offline with cached auth - allow access
+      try {
+        const cached = JSON.parse(cachedAuth);
+        console.log('Offline mode: Using cached auth');
+        setUserProfile(cached.profile);
+        setRole(cached.profile.role);
+        setUser({ uid: cached.profile.uid } as any); // Minimal user object
+        setShowLogin(false);
+        setLoading(false);
+        setAuthChecked(true);
+        return;
+      } catch (e) {
+        console.error('Failed to parse cached auth');
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setAuthChecked(true);
       setUser(u);
@@ -182,8 +203,16 @@ function App() {
             setUserProfile(data);
             setRole(data.role);
             
-            // Update last active
-            await setDoc(userRef, { lastActive: serverTimestamp() }, { merge: true });
+            // Cache auth for offline access
+            const profileWithStringDate = { ...data, lastActive: new Date().toISOString() };
+            localStorage.setItem('stocktrack_cached_auth', JSON.stringify({
+              profile: profileWithStringDate,
+              timestamp: Date.now()
+            }));
+            
+            // Update last active (don't await - fire and forget)
+            setDoc(userRef, { lastActive: serverTimestamp() }, { merge: true })
+              .catch(err => console.warn('Failed to update lastActive:', err.message));
           } else {
             // New user - check for pending name from registration
             const pendingName = localStorage.getItem('pendingUserName');
@@ -200,13 +229,35 @@ function App() {
               lastActive: serverTimestamp() as Timestamp
             };
             await setDoc(userRef, newProfile);
-            setUserProfile({ ...newProfile, lastActive: new Date().toISOString() });
+            const profileWithStringDate = { ...newProfile, lastActive: new Date().toISOString() };
+            setUserProfile(profileWithStringDate);
             setRole(newProfile.role);
+            
+            // Cache auth for offline access
+            localStorage.setItem('stocktrack_cached_auth', JSON.stringify({
+              profile: profileWithStringDate,
+              timestamp: Date.now()
+            }));
           }
           setLoading(false);
         } catch (err) {
           console.error("Firestore Error", err);
-          // Fall back to offline mode
+          // Fall back to cached auth or offline mode
+          const cachedAuth = localStorage.getItem('stocktrack_cached_auth');
+          if (cachedAuth) {
+            try {
+              const cached = JSON.parse(cachedAuth);
+              console.log('Network error: Using cached auth');
+              setUserProfile(cached.profile);
+              setRole(cached.profile.role);
+              setLoading(false);
+              return;
+            } catch (e) {
+              console.error('Failed to parse cached auth');
+            }
+          }
+          
+          // Complete fallback to offline mode
           useStore.getState().setIsFirebaseConfigured(false);
           if (!userProfile) {
             setUserProfile({
@@ -220,7 +271,26 @@ function App() {
           setLoading(false);
         }
       } else {
-        // No user - show login screen
+        // No user - check for cached offline auth
+        const cachedAuth = localStorage.getItem('stocktrack_cached_auth');
+        const isOffline = !navigator.onLine;
+        
+        if (isOffline && cachedAuth) {
+          try {
+            const cached = JSON.parse(cachedAuth);
+            console.log('Offline with no active session: Using cached auth');
+            setUserProfile(cached.profile);
+            setRole(cached.profile.role);
+            setUser({ uid: cached.profile.uid } as any);
+            setShowLogin(false);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.error('Failed to parse cached auth');
+          }
+        }
+        
+        // No cached auth - show login screen
         setShowLogin(true);
         setLoading(false);
       }

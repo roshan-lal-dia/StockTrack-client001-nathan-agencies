@@ -26,30 +26,39 @@ export const RapidReceive = () => {
     if (isNaN(qty) || qty <= 0) return;
 
     const existing = inventory.find(i => i.name.toLowerCase() === localName.toLowerCase());
+    const now = new Date().toISOString();
+    const isOnline = navigator.onLine;
+    const syncNote = isOnline ? '' : ' (will sync when online)';
     
+    // Always show toast and update UI immediately
+    setRecentAdds(prev => [{name: localName, qty}, ...prev].slice(0, 5));
+    setLocalName('');
+    setLocalQty('');
+    addToast(`Processed: ${localName} (+${qty})${syncNote}`, 'success');
+    nameInputRef.current?.focus();
+
     try {
       if (isFirebaseConfigured) {
-        // Online mode - use Firebase
+        // Firebase mode - don't await, let it sync in background
         if (existing) {
           const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', existing.id);
-          await updateDoc(ref, { 
+          updateDoc(ref, { 
             quantity: increment(qty),
             lastUpdated: serverTimestamp()
-          });
-          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+          }).catch(err => console.warn('Sync pending:', err.message));
+          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
             type: 'in', itemName: existing.name, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
-          });
+          }).catch(err => console.warn('Sync pending:', err.message));
         } else {
-          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
+          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
             name: localName, category: 'Uncategorized', quantity: qty, minStock: 5, location: 'Receiving', notes: '', lastUpdated: serverTimestamp()
-          });
-          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+          }).catch(err => console.warn('Sync pending:', err.message));
+          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
             type: 'create', itemName: localName, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
-          });
+          }).catch(err => console.warn('Sync pending:', err.message));
         }
       } else {
-        // Offline mode - use local storage
-        const now = new Date().toISOString();
+        // Pure offline mode - use local storage
         if (existing) {
           updateInventoryItem(existing.id, {
             quantity: existing.quantity + qty,
@@ -85,15 +94,9 @@ export const RapidReceive = () => {
           });
         }
       }
-      
-      setRecentAdds(prev => [{name: localName, qty}, ...prev].slice(0, 5));
-      setLocalName('');
-      setLocalQty('');
-      addToast(`Processed: ${localName} (+${qty})`, 'success');
-      nameInputRef.current?.focus();
     } catch (err) {
       console.error(err);
-      addToast('Failed to process item', 'error');
+      // Error handling for immediate failures only
     }
   };
 

@@ -98,32 +98,45 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
       return;
     }
 
+    const now = new Date().toISOString();
+    const isOnline = navigator.onLine;
+
+    // Always close modal and show toast immediately for good UX
+    addToast(
+      activeModal === 'edit' 
+        ? 'Product updated' + (isOnline ? '' : ' (will sync when online)') 
+        : 'Product created' + (isOnline ? '' : ' (will sync when online)'), 
+      'success'
+    );
+    onClose();
+
     try {
       if (isFirebaseConfigured) {
-        // Online mode - use Firebase
+        // Firebase mode - writes are queued offline and sync automatically
         if (activeModal === 'edit' && selectedItem) {
           const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
-          await updateDoc(ref, {
+          // Don't await - let it sync in background
+          updateDoc(ref, {
             ...formData,
             lastUpdated: serverTimestamp()
-          });
+          }).catch(err => console.warn('Sync pending:', err.message));
         } else {
-          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
+          // Don't await - let it sync in background
+          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
             ...formData,
             lastUpdated: serverTimestamp()
-          });
+          }).catch(err => console.warn('Sync pending:', err.message));
           
-          await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
             type: 'create',
             itemName: formData.name,
             quantity: formData.quantity,
             user: userProfile?.name || 'Unknown',
             timestamp: serverTimestamp()
-          });
+          }).catch(err => console.warn('Sync pending:', err.message));
         }
       } else {
-        // Offline mode - use local storage
-        const now = new Date().toISOString();
+        // Pure offline mode - use local storage
         if (activeModal === 'edit' && selectedItem) {
           updateInventoryItem(selectedItem.id, {
             ...formData,
@@ -147,12 +160,9 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
           });
         }
       }
-      
-      addToast(activeModal === 'edit' ? 'Product updated successfully' : 'Product created successfully', 'success');
-      onClose();
     } catch (err) {
       console.error(err);
-      addToast('Operation failed', 'error');
+      // Error handling for immediate failures only
     }
   };
 
@@ -166,30 +176,36 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
       return;
     }
 
-    try {
-      const newQuantity = transactionType === 'in' 
-        ? selectedItem.quantity + qty 
-        : selectedItem.quantity - qty;
+    const newQuantity = transactionType === 'in' 
+      ? selectedItem.quantity + qty 
+      : selectedItem.quantity - qty;
+    const now = new Date().toISOString();
+    const isOnline = navigator.onLine;
 
+    // Always close modal and show toast immediately for good UX
+    const syncNote = isOnline ? '' : ' (will sync when online)';
+    addToast(`${transactionType === 'in' ? 'Received' : 'Dispatched'} ${qty} units${syncNote}`, 'success');
+    onClose();
+
+    try {
       if (isFirebaseConfigured) {
-        // Online mode - use Firebase
+        // Firebase mode - don't await, let it sync in background
         const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
-        await updateDoc(ref, {
+        updateDoc(ref, {
           quantity: transactionType === 'in' ? increment(qty) : increment(-qty),
           lastUpdated: serverTimestamp()
-        });
+        }).catch(err => console.warn('Sync pending:', err.message));
 
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+        addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
           type: transactionType,
           itemName: selectedItem.name,
           quantity: qty,
           user: userProfile?.name || 'Unknown',
           timestamp: serverTimestamp(),
           ...(attachmentUrl && { attachmentUrl, attachmentName })
-        });
+        }).catch(err => console.warn('Sync pending:', err.message));
       } else {
-        // Offline mode - use local storage
-        const now = new Date().toISOString();
+        // Pure offline mode - use local storage
         updateInventoryItem(selectedItem.id, {
           quantity: newQuantity,
           lastUpdated: now
@@ -205,12 +221,9 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
           ...(attachmentUrl && { attachmentUrl, attachmentName })
         });
       }
-
-      addToast(`${transactionType === 'in' ? 'Received' : 'Dispatched'} ${qty} units`, 'success');
-      onClose();
     } catch (err) {
       console.error(err);
-      addToast('Transaction failed', 'error');
+      // Error handling for immediate failures only
     }
   };
 
@@ -341,9 +354,11 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
                         <input 
                            type="number" 
                            className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 outline-none font-medium text-slate-800 dark:text-white disabled:opacity-50"
-                           value={formData.quantity}
-                           onChange={e => setFormData({...formData, quantity: parseInt(e.target.value) || 0})}
+                           value={formData.quantity === 0 ? '' : formData.quantity}
+                           onChange={e => setFormData({...formData, quantity: e.target.value === '' ? 0 : parseInt(e.target.value)})}
+                           onBlur={e => { if (e.target.value === '') setFormData(f => ({...f, quantity: 0})); }}
                            disabled={activeModal === 'edit'}
+                           min="0"
                         />
                      </div>
                      <div>
@@ -351,8 +366,10 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
                         <input 
                            type="number" 
                            className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 outline-none font-medium text-slate-800 dark:text-white"
-                           value={formData.minStock}
-                           onChange={e => setFormData({...formData, minStock: parseInt(e.target.value) || 0})}
+                           value={formData.minStock === 0 ? '' : formData.minStock}
+                           onChange={e => setFormData({...formData, minStock: e.target.value === '' ? 0 : parseInt(e.target.value)})}
+                           onBlur={e => { if (e.target.value === '') setFormData(f => ({...f, minStock: 0})); }}
+                           min="0"
                         />
                      </div>
                   </div>

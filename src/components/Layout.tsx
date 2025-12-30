@@ -184,8 +184,17 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
       {mobileMenuOpen && <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />}
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 overflow-y-auto h-screen p-4 md:p-8 scroll-smooth">
-        {children}
+      <main className="flex-1 overflow-y-auto h-screen scroll-smooth">
+        {/* Offline Banner */}
+        {isOffline && (
+          <div className="bg-amber-500 text-amber-950 px-4 py-2 text-center text-sm font-medium flex items-center justify-center gap-2">
+            <WifiOff size={16} />
+            <span>You're offline. Changes will sync when connection is restored.</span>
+          </div>
+        )}
+        <div className="p-4 md:p-8">
+          {children}
+        </div>
       </main>
     </div>
   );
