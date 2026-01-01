@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Zap, Plus } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
@@ -15,7 +15,66 @@ export const RapidReceive = () => {
   const [localName, setLocalName] = useState('');
   const [localQty, setLocalQty] = useState('');
   const [recentAdds, setRecentAdds] = useState<{name: string, qty: number}[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const qtyInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter suggestions based on current input
+  const suggestions = useMemo(() => {
+    if (localName.length < 2) return [];
+    return inventory
+      .filter(i => i.name.toLowerCase().includes(localName.toLowerCase()))
+      .slice(0, 5);
+  }, [inventory, localName]);
+
+  // Handle keyboard navigation in autocomplete
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (suggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(prev => 
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case 'Enter':
+        if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+          e.preventDefault();
+          setLocalName(suggestions[selectedIndex].name);
+          setSelectedIndex(-1);
+          // Focus the quantity field after selecting
+          qtyInputRef.current?.focus();
+        }
+        break;
+      case 'Tab':
+        // Auto-complete first suggestion on Tab if there's a match
+        if (suggestions.length > 0 && selectedIndex === -1) {
+          e.preventDefault();
+          setLocalName(suggestions[0].name);
+          qtyInputRef.current?.focus();
+        } else if (selectedIndex >= 0) {
+          e.preventDefault();
+          setLocalName(suggestions[selectedIndex].name);
+          setSelectedIndex(-1);
+          qtyInputRef.current?.focus();
+        }
+        break;
+      case 'Escape':
+        setSelectedIndex(-1);
+        break;
+    }
+  };
+
+  // Reset selection when input changes
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalName(e.target.value);
+    setSelectedIndex(-1);
+  };
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
@@ -120,29 +179,43 @@ export const RapidReceive = () => {
               ref={nameInputRef}
               type="text" 
               value={localName}
-              onChange={e => setLocalName(e.target.value)}
+              onChange={handleNameChange}
+              onKeyDown={handleKeyDown}
               className="w-full p-4 bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-600 rounded-xl focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 outline-none font-bold text-lg text-slate-800 dark:text-white"
-              placeholder="Scan or type..."
+              placeholder="Scan or type... (↑↓ to navigate, Enter to select)"
               autoFocus
             />
             {/* Autocomplete Suggestions */}
-            {localName.length > 1 && (
+            {suggestions.length > 0 && (
               <div className="absolute bg-white dark:bg-slate-800 shadow-xl border border-slate-100 dark:border-slate-700 rounded-lg mt-1 z-10 w-full max-h-40 overflow-auto">
-                {inventory.filter(i => i.name.toLowerCase().includes(localName.toLowerCase())).slice(0,5).map(m => (
+                {suggestions.map((m, index) => (
                   <div 
                     key={m.id} 
-                    className="p-2 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-sm font-medium text-slate-800 dark:text-white"
-                    onClick={() => setLocalName(m.name)}
+                    className={`p-3 cursor-pointer text-sm font-medium transition-colors ${
+                      index === selectedIndex 
+                        ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' 
+                        : 'text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
+                    onClick={() => {
+                      setLocalName(m.name);
+                      setSelectedIndex(-1);
+                      qtyInputRef.current?.focus();
+                    }}
+                    onMouseEnter={() => setSelectedIndex(index)}
                   >
-                    {m.name} <span className="text-slate-400 text-xs">({m.quantity})</span>
+                    {m.name} <span className="text-slate-400 text-xs">({m.quantity} in stock)</span>
                   </div>
                 ))}
+                <div className="px-3 py-2 text-xs text-slate-400 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                  ↑↓ Navigate • Enter/Tab to select
+                </div>
               </div>
             )}
           </div>
           <div className="w-full md:w-32">
             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Quantity</label>
             <input 
+              ref={qtyInputRef}
               type="number" 
               value={localQty}
               onChange={e => setLocalQty(e.target.value)}

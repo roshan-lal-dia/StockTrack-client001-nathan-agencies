@@ -14,11 +14,16 @@ import {
   ChevronDown,
   ScanBarcode,
   Printer,
-  Star
+  Star,
+  Trash2
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
+import { useToastStore } from '@/store/useToastStore';
 import { InventoryItem } from '@/types';
 import { BarcodeScanner } from './BarcodeScanner';
+import { ConfirmDialog } from './ConfirmDialog';
+import { deleteDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { PrintLabels } from './PrintLabels';
 import { ImageViewer, ImageThumbnail } from './ImageViewer';
 
@@ -32,9 +37,34 @@ type SortOrder = 'asc' | 'desc';
 type StockFilter = 'all' | 'low' | 'ok' | 'out' | 'favorites';
 
 export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
-  const { inventory, role, favorites, toggleFavorite } = useStore();
+  const { inventory, role, favorites, toggleFavorite, deleteInventoryItem, isFirebaseConfigured, addLog, userProfile } = useStore();
+  const { addToast } = useToastStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<InventoryItem | null>(null);
+
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+
+  const handleDeleteItem = async () => {
+    if (!deleteConfirm) return;
+    
+    const itemToDelete = deleteConfirm;
+    setDeleteConfirm(null);
+    addToast(`Deleted "${itemToDelete.name}"`, 'success');
+
+    try {
+      if (isFirebaseConfigured) {
+        // Delete from Firebase
+        await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', itemToDelete.id));
+      } else {
+        // Delete from local store
+        deleteInventoryItem(itemToDelete.id);
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+      addToast('Delete failed', 'error');
+    }
+  };
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
@@ -336,7 +366,7 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
                       </div>
                    </div>
                 </div>
-                <div className="text-center bg-slate-50 dark:bg-slate-700 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-600 min-w-[4rem]">
+                <div className="text-center bg-slate-50 dark:bg-slate-700 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-600 min-w-16">
                    <span className={`block text-xl font-bold ${item.quantity === 0 ? 'text-slate-400' : item.quantity <= item.minStock ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}`}>{item.quantity}</span>
                    <span className="text-[10px] text-slate-400 uppercase font-bold">Units</span>
                 </div>
@@ -359,7 +389,13 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
              </div>
              
              {role === 'admin' && (
-               <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-700 flex justify-end">
+               <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                  <button 
+                    onClick={() => setDeleteConfirm(item)}
+                    className="text-xs font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 uppercase tracking-wider flex items-center gap-1"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
                   <button 
                     onClick={() => onOpenModal('edit', item)}
                     className="text-xs font-bold text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 uppercase tracking-wider"
@@ -406,6 +442,18 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
           title={viewingImage.title}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm !== null}
+        title="Delete Product?"
+        message={`Are you sure you want to delete "${deleteConfirm?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={handleDeleteItem}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   );
 };

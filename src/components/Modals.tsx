@@ -248,7 +248,7 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
     <>
       {/* TRANSACTION MODAL */}
       {activeModal === 'transaction' && selectedItem && (
-         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
             <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-sm p-8 shadow-2xl relative animate-scale-in">
                <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"><X /></button>
                
@@ -311,7 +311,7 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
 
       {/* CREATE/EDIT MODAL */}
       {(activeModal === 'add' || activeModal === 'edit') && (
-         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
             <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg p-8 shadow-2xl relative animate-scale-in max-h-[90vh] overflow-y-auto">
                <div className="flex justify-between items-center mb-6">
                   <h3 className="text-2xl font-bold text-slate-800 dark:text-white">{activeModal === 'edit' ? 'Edit Product' : 'New Product'}</h3>
