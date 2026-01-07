@@ -6,6 +6,7 @@ import { useToastStore } from '@/store/useToastStore';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { InventoryItem } from '@/types';
+import { normalizeCategory } from '@/lib/categoryUtils';
 
 interface CSVRow {
   name: string;
@@ -57,6 +58,7 @@ export const CSVImport = () => {
           const name = row.name?.trim() || '';
           const quantity = parseInt(String(row.quantity)) || 0;
           const minStock = parseInt(String(row.minStock)) || 5;
+          const normalizedCategory = normalizeCategory(row.category?.trim() || 'UNCATEGORIZED');
           
           // Check for duplicates
           const existingItem = inventory.find(
@@ -66,7 +68,7 @@ export const CSVImport = () => {
           if (!name) {
             return {
               name: '(empty)',
-              category: row.category?.trim() || 'Uncategorized',
+              category: normalizedCategory,
               quantity,
               minStock,
               location: row.location?.trim() || '',
@@ -79,7 +81,7 @@ export const CSVImport = () => {
           if (existingItem) {
             return {
               name,
-              category: row.category?.trim() || 'Uncategorized',
+              category: normalizedCategory,
               quantity,
               minStock,
               location: row.location?.trim() || '',
@@ -91,7 +93,7 @@ export const CSVImport = () => {
 
           return {
             name,
-            category: row.category?.trim() || 'Uncategorized',
+            category: normalizedCategory,
             quantity,
             minStock,
             location: row.location?.trim() || '',

@@ -30,6 +30,7 @@ interface AppState {
   setIsFirebaseConfigured: (configured: boolean) => void;
   toggleFavorite: (itemId: string) => void;
   isFavorite: (itemId: string) => boolean;
+  getUniqueCategories: () => string[];
 }
 
 export const useStore = create<AppState>()(
@@ -71,6 +72,14 @@ export const useStore = create<AppState>()(
           : [...get().favorites, itemId]
       }),
       isFavorite: (itemId) => get().favorites.includes(itemId),
+      getUniqueCategories: () => {
+        const categories = new Set(
+          get().inventory
+            .map(item => item.category)
+            .filter(cat => cat && cat.trim())
+        );
+        return Array.from(categories).sort();
+      },
     }),
     {
       name: 'stocktrack-data',

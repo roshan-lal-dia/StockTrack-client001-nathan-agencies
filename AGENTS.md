@@ -30,6 +30,9 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **PDF Reports**: Generate inventory/logs reports with filters (date, category, low stock)
 - **Database Management**: PIN-protected log cleanup to prevent database bloat
 - **Conflict Resolution**: Handles concurrent updates with delta-based merging
+- **Rapid Dispatch Mode**: Quick stock removal with IN/OUT toggle (mirroring Rapid Receive)
+- **Category Standardization**: Export/Import workflow for external AI processing
+- **Category Autocomplete**: Searchable dropdown showing existing categories
 
 ## Offline & PWA Features
 
@@ -85,11 +88,18 @@ When multiple users edit the same product (online or offline):
 |----------|--------|
 | `Alt + K` | Open Command Palette |
 | `Alt + N` | Create New Item |
-| `Alt + R` | Rapid Receive Mode |
+| `Alt + R` | Rapid Receive/Dispatch Mode |
 | `Alt + D` | Go to Dashboard |
 | `Alt + I` | Go to Inventory |
 | `Alt + ,` | Open Settings |
 | `Escape` | Close Modals/Dialogs |
+
+### Category Management
+- **Auto-Capitalization**: All categories automatically converted to UPPERCASE
+- **Autocomplete Dropdown**: Search existing categories or create new ones
+- **External AI Processing**: Export categories, use any AI tool (ChatGPT/Claude) for standardization, then import corrections
+- **Full-Text Search**: Find categories as you type with fuzzy matching
+- **Staff/Admin Flexibility**: Both roles can add new categories freely
 
 ### Data Export (`src/lib/export.ts`)
 Available in the **Backup & Export** admin panel:
@@ -108,12 +118,12 @@ src/
 │   ├── LoginScreen.tsx     # Authentication screen (Email/Password, Google, Demo)
 │   ├── Dashboard.tsx       # Overview stats and recent activity
 │   ├── Inventory.tsx       # Product list with advanced filters
-│   ├── RapidReceive.tsx    # Quick stock entry mode
+│   ├── RapidReceive.tsx    # Quick stock entry mode with IN/OUT toggle
 │   ├── Logs.tsx            # Audit trail table
 │   ├── Team.tsx            # User/role management (Admin)
 │   ├── Backup.tsx          # Export panel (Admin)
 │   ├── Settings.tsx        # User preferences, theme & sign out
-│   ├── Modals.tsx          # Transaction/Edit dialogs
+│   ├── Modals.tsx          # Transaction/Edit dialogs with category autocomplete
 │   ├── Toast.tsx           # Notification container
 │   ├── CommandPalette.tsx  # Quick search/navigation (Alt+K)
 │   ├── ConfirmDialog.tsx   # Confirmation modals for dangerous actions
@@ -129,7 +139,8 @@ src/
 │   ├── PinVerification.tsx # PIN verification for sensitive operations
 │   ├── DatabaseAdmin.tsx   # Log cleanup and database management
 │   ├── ReportGenerator.tsx # PDF report generation with filters
-│   └── ConflictResolver.tsx # Concurrent update conflict resolution UI
+│   ├── ConflictResolver.tsx # Concurrent update conflict resolution UI
+│   └── CategoryStandardization.tsx # AI-powered category cleanup
 ├── store/
 │   ├── useStore.ts         # Main app state (Zustand)
 │   ├── useThemeStore.ts    # Theme persistence
@@ -138,7 +149,8 @@ src/
 │   ├── firebase.ts         # Firebase configuration
 │   ├── export.ts           # Data export utilities
 │   ├── imageUtils.ts       # Cloudinary upload utilities
-│   └── conflictResolution.ts # Delta tracking and conflict detection
+│   ├── conflictResolution.ts # Delta tracking and conflict detection
+│   └── categoryUtils.ts    # Category normalization utilities
 ├── types/
 │   └── index.ts            # TypeScript interfaces
 ├── App.tsx                 # Main app with routing
@@ -175,7 +187,7 @@ docs/
 ### Inventory
 - `id`: Unique ID
 - `name`: Product Name
-- `category`: Category
+- `category`: Category (auto-converted to UPPERCASE)
 - `quantity`: Current Stock
 - `minStock`: Low stock threshold
 - `location`: Shelf/Bin location
@@ -194,5 +206,5 @@ docs/
 - `timestamp`: Time of action
 
 ## Roles
-- **Admin**: Full access + Team Management + Edit Items + Backup & Export
-- **Staff**: View, Add/Remove Stock, Rapid Receive
+- **Admin**: Full access + Team Management + Edit Items + Backup & Export + Category Standardization
+- **Staff**: View, Add/Remove Stock, Rapid Receive/Dispatch, Add new categories

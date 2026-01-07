@@ -1,10 +1,11 @@
 import { useState, useRef, useMemo } from 'react';
-import { Zap, Plus } from 'lucide-react';
+import { Zap, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { InventoryItem } from '@/types';
+import { normalizeCategory } from '@/lib/categoryUtils';
 
 // Generate a unique ID for offline mode
 const generateId = () => `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -12,9 +13,10 @@ const generateId = () => `local_${Date.now()}_${Math.random().toString(36).subst
 export const RapidReceive = () => {
   const { inventory, userProfile, isFirebaseConfigured, addInventoryItem, updateInventoryItem, addLog } = useStore();
   const { addToast } = useToastStore();
+  const [mode, setMode] = useState<'in' | 'out'>('in');
   const [localName, setLocalName] = useState('');
   const [localQty, setLocalQty] = useState('');
-  const [recentAdds, setRecentAdds] = useState<{name: string, qty: number}[]>([]);
+  const [recentAdds, setRecentAdds] = useState<{name: string, qty: number, type: 'in' | 'out'}[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
@@ -85,15 +87,29 @@ export const RapidReceive = () => {
     if (isNaN(qty) || qty <= 0) return;
 
     const existing = inventory.find(i => i.name.toLowerCase() === localName.toLowerCase());
+    
+    // For OUT mode, item must exist
+    if (mode === 'out' && !existing) {
+      addToast(`Product "${localName}" not found`, 'error');
+      return;
+    }
+
+    // For OUT mode, check if quantity is sufficient
+    if (mode === 'out' && existing && existing.quantity < qty) {
+      addToast(`Insufficient stock. Available: ${existing.quantity}`, 'error');
+      return;
+    }
+
     const now = new Date().toISOString();
     const isOnline = navigator.onLine;
     const syncNote = isOnline ? '' : ' (will sync when online)';
+    const typeSymbol = mode === 'in' ? '+' : '-';
     
     // Always show toast and update UI immediately
-    setRecentAdds(prev => [{name: localName, qty}, ...prev].slice(0, 5));
+    setRecentAdds(prev => [{name: localName, qty, type: mode}, ...prev].slice(0, 5));
     setLocalName('');
     setLocalQty('');
-    addToast(`Processed: ${localName} (+${qty})${syncNote}`, 'success');
+    addToast(`Processed: ${localName} (${typeSymbol}${qty})${syncNote}`, 'success');
     nameInputRef.current?.focus();
 
     try {
@@ -101,16 +117,18 @@ export const RapidReceive = () => {
         // Firebase mode - don't await, let it sync in background
         if (existing) {
           const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', existing.id);
+          const quantityChange = mode === 'in' ? qty : -qty;
           updateDoc(ref, { 
-            quantity: increment(qty),
+            quantity: increment(quantityChange),
             lastUpdated: serverTimestamp()
           }).catch(err => console.warn('Sync pending:', err.message));
           addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
-            type: 'in', itemName: existing.name, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
+            type: mode, itemName: existing.name, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
           }).catch(err => console.warn('Sync pending:', err.message));
         } else {
+          // Only for IN mode (OUT mode already checked above)
           addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
-            name: localName, category: 'Uncategorized', quantity: qty, minStock: 5, location: 'Receiving', notes: '', lastUpdated: serverTimestamp()
+            name: localName, category: normalizeCategory('UNCATEGORIZED'), quantity: qty, minStock: 5, location: 'Receiving', notes: '', lastUpdated: serverTimestamp()
           }).catch(err => console.warn('Sync pending:', err.message));
           addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
             type: 'create', itemName: localName, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
@@ -119,23 +137,25 @@ export const RapidReceive = () => {
       } else {
         // Pure offline mode - use local storage
         if (existing) {
+          const quantityChange = mode === 'in' ? qty : -qty;
           updateInventoryItem(existing.id, {
-            quantity: existing.quantity + qty,
+            quantity: existing.quantity + quantityChange,
             lastUpdated: now
           });
           addLog({
             id: generateId(),
-            type: 'in',
+            type: mode,
             itemName: existing.name,
             quantity: qty,
             user: userProfile?.name || 'Local User',
             timestamp: now
           });
         } else {
+          // Only for IN mode
           const newItem: InventoryItem = {
             id: generateId(),
             name: localName,
-            category: 'Uncategorized',
+            category: normalizeCategory('UNCATEGORIZED'),
             quantity: qty,
             minStock: 5,
             location: 'Receiving',
@@ -162,13 +182,42 @@ export const RapidReceive = () => {
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full">
-            <Zap size={24} />
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className={`p-3 rounded-full ${mode === 'in' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
+              {mode === 'in' ? <ArrowDownCircle size={24} /> : <ArrowUpCircle size={24} />}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+                Rapid {mode === 'in' ? 'Receive' : 'Dispatch'}
+              </h2>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Optimized for high-speed stock entry.</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white">Rapid Receive Mode</h2>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">Optimized for high-speed stock entry.</p>
+          {/* Mode Toggle */}
+          <div className="flex gap-2 bg-slate-100 dark:bg-slate-700 p-1 rounded-full">
+            <button
+              type="button"
+              onClick={() => setMode('in')}
+              className={`px-4 py-2 rounded-full font-bold transition-colors flex items-center gap-2 ${
+                mode === 'in'
+                  ? 'bg-green-500 text-white'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
+              }`}
+            >
+              <ArrowDownCircle size={16} /> IN
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('out')}
+              className={`px-4 py-2 rounded-full font-bold transition-colors flex items-center gap-2 ${
+                mode === 'out'
+                  ? 'bg-red-500 text-white'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
+              }`}
+            >
+              <ArrowUpCircle size={16} /> OUT
+            </button>
           </div>
         </div>
 
@@ -225,9 +274,14 @@ export const RapidReceive = () => {
           </div>
           <button 
             type="submit"
-            className="w-full md:w-auto p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30 transition-all flex items-center justify-center gap-2"
+            className={`w-full md:w-auto p-4 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 text-white ${
+              mode === 'in'
+                ? 'bg-green-600 hover:bg-green-700 shadow-green-200 dark:shadow-green-900/30'
+                : 'bg-red-600 hover:bg-red-700 shadow-red-200 dark:shadow-red-900/30'
+            }`}
           >
-            <Plus size={24} /> <span className="md:hidden">Add Stock</span>
+            {mode === 'in' ? <ArrowDownCircle size={24} /> : <ArrowUpCircle size={24} />}
+            <span className="md:hidden">{mode === 'in' ? 'Receive' : 'Dispatch'}</span>
           </button>
         </form>
       </div>
@@ -239,7 +293,13 @@ export const RapidReceive = () => {
             {recentAdds.map((item, idx) => (
               <div key={idx} className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in-down">
                 <span className="font-medium text-slate-700 dark:text-slate-200">{item.name}</span>
-                <span className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-sm font-bold">+{item.qty}</span>
+                <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                  item.type === 'in'
+                    ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
+                    : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+                }`}>
+                  {item.type === 'in' ? '+' : '-'}{item.qty}
+                </span>
               </div>
             ))}
           </div>

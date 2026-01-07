@@ -4,6 +4,8 @@ import { useToastStore } from '@/store/useToastStore';
 import { CSVImport } from './CSVImport';
 import { DatabaseAdmin } from './DatabaseAdmin';
 import { ReportGenerator } from './ReportGenerator';
+// One-time standardization tool - uncomment if needed again
+// import { CategoryStandardization } from './CategoryStandardization';
 
 export const Backup = () => {
   const { addToast } = useToastStore();
@@ -128,6 +130,9 @@ export const Backup = () => {
 
       {/* PDF Reports */}
       <ReportGenerator />
+
+      {/* Category/Location Standardization - One-time tool, uncomment if needed again */}
+      {/* <CategoryStandardization /> */}
 
       {/* Database Management */}
       <DatabaseAdmin />

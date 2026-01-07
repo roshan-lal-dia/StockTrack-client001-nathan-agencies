@@ -158,7 +158,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
           <div className="space-y-1">
             <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
             <NavItem view="inventory" icon={Package} label="Inventory" badge={inventory.length} />
-            <NavItem view="rapid-receive" icon={Zap} label="Rapid Receive" highlight />
+            <NavItem view="rapid-receive" icon={Zap} label="Rapid Mode" highlight />
             <NavItem view="history" icon={History} label="Logs" />
             
             {role === 'admin' && (
@@ -177,7 +177,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
                   // iOS: Show button that opens instruction modal
                   <button
                     onClick={() => { setShowInstallModal(true); setMobileMenuOpen(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg hover:from-indigo-500 hover:to-purple-500"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-lg hover:from-indigo-500 hover:to-purple-500"
                   >
                     <Smartphone size={20} />
                     <span className="flex-1 text-left">Install App</span>
@@ -192,7 +192,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
                       }
                       setMobileMenuOpen(false);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg animate-pulse hover:from-emerald-500 hover:to-teal-500"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium bg-linear-to-r from-emerald-600 to-teal-600 text-white shadow-lg animate-pulse hover:from-emerald-500 hover:to-teal-500"
                   >
                     <Download size={20} />
                     <span className="flex-1 text-left">Install App</span>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { X, ArrowDownCircle, ArrowUpCircle, ChevronDown } from 'lucide-react';
 import { InventoryItem } from '@/types';
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import { ImageUpload, AttachmentUpload } from './ImageUpload';
 import { UploadedImage } from '@/lib/imageUtils';
 import { savePendingChange, generateChangeId } from '@/lib/conflictResolution';
+import { normalizeCategory, filterCategories } from '@/lib/categoryUtils';
 
 interface ModalsProps {
   activeModal: 'none' | 'add' | 'transaction' | 'edit';
@@ -22,7 +23,7 @@ const generateId = () => `local_${Date.now()}_${Math.random().toString(36).subst
 export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in', onClose }: ModalsProps) => {
   const { 
     userProfile, inventory, isFirebaseConfigured,
-    addInventoryItem, updateInventoryItem, addLog 
+    addInventoryItem, updateInventoryItem, addLog, getUniqueCategories
   } = useStore();
   const { addToast } = useToastStore();
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
@@ -32,6 +33,31 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
   const [transactionType, setTransactionType] = useState<'in' | 'out'>('in');
   const [attachmentUrl, setAttachmentUrl] = useState<string>('');
   const [attachmentName, setAttachmentName] = useState<string>('');
+
+  // Category dropdown state
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
+
+  // Location dropdown state
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [locationSearch, setLocationSearch] = useState('');
+
+  // Get unique locations from inventory (sorted alphabetically)
+  const getUniqueLocations = (): string[] => {
+    const locations = new Set(
+      inventory
+        .map(item => item.location)
+        .filter(loc => loc && loc.trim())
+    );
+    return Array.from(locations).sort((a, b) => a.localeCompare(b));
+  };
+
+  // Filter locations by search term
+  const filterLocations = (locations: string[], searchTerm: string): string[] => {
+    if (!searchTerm.trim()) return locations;
+    const lowerSearch = searchTerm.toLowerCase();
+    return locations.filter(loc => loc.toLowerCase().includes(lowerSearch));
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -99,6 +125,13 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
       return;
     }
 
+    // Normalize category and location to CAPS
+    const normalizedData = {
+      ...formData,
+      category: normalizeCategory(formData.category || 'UNCATEGORIZED'),
+      location: normalizeCategory(formData.location || 'UNASSIGNED')
+    };
+
     const now = new Date().toISOString();
     const isOnline = navigator.onLine;
 
@@ -118,20 +151,20 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
           const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
           // Don't await - let it sync in background
           updateDoc(ref, {
-            ...formData,
+            ...normalizedData,
             lastUpdated: serverTimestamp()
           }).catch(err => console.warn('Sync pending:', err.message));
         } else {
           // Don't await - let it sync in background
           addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
-            ...formData,
+            ...normalizedData,
             lastUpdated: serverTimestamp()
           }).catch(err => console.warn('Sync pending:', err.message));
           
           addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
             type: 'create',
-            itemName: formData.name,
-            quantity: formData.quantity,
+            itemName: normalizedData.name,
+            quantity: normalizedData.quantity,
             user: userProfile?.name || 'Unknown',
             timestamp: serverTimestamp()
           }).catch(err => console.warn('Sync pending:', err.message));
@@ -140,13 +173,13 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
         // Pure offline mode - use local storage
         if (activeModal === 'edit' && selectedItem) {
           updateInventoryItem(selectedItem.id, {
-            ...formData,
+            ...normalizedData,
             lastUpdated: now
           });
         } else {
           const newItem: InventoryItem = {
             id: generateId(),
-            ...formData,
+            ...normalizedData,
             lastUpdated: now
           };
           addInventoryItem(newItem);
@@ -154,8 +187,8 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
           addLog({
             id: generateId(),
             type: 'create',
-            itemName: formData.name,
-            quantity: formData.quantity,
+            itemName: normalizedData.name,
+            quantity: normalizedData.quantity,
             user: userProfile?.name || 'Local User',
             timestamp: now
           });
@@ -341,25 +374,133 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                     <div>
+                     <div className="relative">
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Category</label>
-                        <input 
-                           type="text" 
-                           className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 outline-none font-medium text-slate-800 dark:text-white"
-                           placeholder="e.g. Electrical"
-                           value={formData.category}
-                           onChange={e => setFormData({...formData, category: e.target.value})}
-                        />
+                        <button
+                           type="button"
+                           onClick={() => {
+                              setShowCategoryDropdown(!showCategoryDropdown);
+                              setCategorySearch('');
+                           }}
+                           className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 outline-none font-medium text-slate-800 dark:text-white text-left flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-500"
+                        >
+                           <span>{formData.category || 'Select category...'}</span>
+                           <ChevronDown size={16} className={`transition-transform ${showCategoryDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {showCategoryDropdown && (
+                           <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-lg z-50">
+                              {/* Search input */}
+                              <input
+                                 type="text"
+                                 placeholder="Search or create..."
+                                 value={categorySearch}
+                                 onChange={(e) => setCategorySearch(e.target.value)}
+                                 className="w-full p-3 border-b border-slate-200 dark:border-slate-600 rounded-t-xl bg-slate-50 dark:bg-slate-900 outline-none text-slate-800 dark:text-white"
+                                 autoFocus
+                              />
+                              
+                              {/* Existing categories */}
+                              <div className="max-h-40 overflow-y-auto">
+                                 {getUniqueCategories().length > 0 && (
+                                    filterCategories(getUniqueCategories(), categorySearch).map((cat) => (
+                                       <button
+                                          key={cat}
+                                          type="button"
+                                          onClick={() => {
+                                             setFormData({ ...formData, category: cat });
+                                             setShowCategoryDropdown(false);
+                                             setCategorySearch('');
+                                          }}
+                                          className="w-full text-left p-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 text-slate-800 dark:text-white transition-colors"
+                                       >
+                                          {cat}
+                                       </button>
+                                    ))
+                                 )}
+                              </div>
+                              
+                              {/* Create new category if search doesn't match */}
+                              {categorySearch.trim() && !getUniqueCategories().some(c => c.toUpperCase() === categorySearch.toUpperCase()) && (
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const newCategory = normalizeCategory(categorySearch);
+                                       setFormData({ ...formData, category: newCategory });
+                                       setShowCategoryDropdown(false);
+                                       setCategorySearch('');
+                                    }}
+                                    className="w-full text-left p-3 border-t border-slate-200 dark:border-slate-600 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+                                 >
+                                    + Create "{normalizeCategory(categorySearch)}"
+                                 </button>
+                              )}
+                           </div>
+                        )}
                      </div>
-                     <div>
+                     <div className="relative">
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Location / Shelf</label>
-                        <input 
-                           type="text" 
-                           className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 outline-none font-medium text-slate-800 dark:text-white"
-                           placeholder="e.g. A-12"
-                           value={formData.location}
-                           onChange={e => setFormData({...formData, location: e.target.value})}
-                        />
+                        <button
+                           type="button"
+                           onClick={() => {
+                              setShowLocationDropdown(!showLocationDropdown);
+                              setLocationSearch('');
+                           }}
+                           className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 outline-none font-medium text-slate-800 dark:text-white text-left flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-500"
+                        >
+                           <span>{formData.location || 'Select location...'}</span>
+                           <ChevronDown size={16} className={`transition-transform ${showLocationDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {showLocationDropdown && (
+                           <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-lg z-50">
+                              {/* Search input */}
+                              <input
+                                 type="text"
+                                 placeholder="Search or create..."
+                                 value={locationSearch}
+                                 onChange={(e) => setLocationSearch(e.target.value)}
+                                 className="w-full p-3 border-b border-slate-200 dark:border-slate-600 rounded-t-xl bg-slate-50 dark:bg-slate-900 outline-none text-slate-800 dark:text-white"
+                                 autoFocus
+                              />
+                              
+                              {/* Existing locations */}
+                              <div className="max-h-40 overflow-y-auto">
+                                 {getUniqueLocations().length > 0 && (
+                                    filterLocations(getUniqueLocations(), locationSearch).map((loc) => (
+                                       <button
+                                          key={loc}
+                                          type="button"
+                                          onClick={() => {
+                                             setFormData({ ...formData, location: loc });
+                                             setShowLocationDropdown(false);
+                                             setLocationSearch('');
+                                          }}
+                                          className="w-full text-left p-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 text-slate-800 dark:text-white transition-colors"
+                                       >
+                                          {loc}
+                                       </button>
+                                    ))
+                                 )}
+                              </div>
+                              
+                              {/* Create new location if search doesn't match */}
+                              {locationSearch.trim() && !getUniqueLocations().some(l => l.toUpperCase() === locationSearch.toUpperCase()) && (
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const newLocation = normalizeCategory(locationSearch);
+                                       setFormData({ ...formData, location: newLocation });
+                                       setShowLocationDropdown(false);
+                                       setLocationSearch('');
+                                    }}
+                                    className="w-full text-left p-3 border-t border-slate-200 dark:border-slate-600 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+                                 >
+                                    + Create "{normalizeCategory(locationSearch)}"
+                                 </button>
+                              )}
+                           </div>
+                        )}
                      </div>
                   </div>
 

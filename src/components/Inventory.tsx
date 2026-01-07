@@ -74,15 +74,15 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
   const [showPrintLabels, setShowPrintLabels] = useState(false);
   const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
 
-  // Get unique categories and locations
+  // Get unique categories and locations (sorted alphabetically)
   const categories = useMemo(() => {
     const cats = new Set(inventory.map(i => i.category).filter(Boolean));
-    return ['all', ...Array.from(cats)];
+    return ['all', ...Array.from(cats).sort((a, b) => a.localeCompare(b))];
   }, [inventory]);
 
   const locations = useMemo(() => {
     const locs = new Set(inventory.map(i => i.location).filter(Boolean));
-    return ['all', ...Array.from(locs)];
+    return ['all', ...Array.from(locs).sort((a, b) => a.localeCompare(b))];
   }, [inventory]);
 
   const handleBarcodeScan = (code: string, item?: InventoryItem) => {
