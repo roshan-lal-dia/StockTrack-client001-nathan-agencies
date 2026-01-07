@@ -103,7 +103,7 @@ export const LoginScreen = ({ onAuthSuccess }: LoginScreenProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-indigo-900 via-slate-900 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo & Title */}
         <div className="text-center mb-8">
@@ -240,14 +240,14 @@ export const LoginScreen = ({ onAuthSuccess }: LoginScreenProps) => {
               Google
             </button>
 
-            <button
+            {/* <button
               onClick={handleAnonymousSignIn}
               disabled={loading}
               className="w-full py-3 bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600/50 text-slate-600 dark:text-slate-400 font-medium rounded-xl transition-colors flex items-center justify-center gap-3"
             >
               <UserX size={18} />
               Try Demo (No Account)
-            </button>
+            </button> */}
           </div>
         </div>
 
