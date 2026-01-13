@@ -30,7 +30,11 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **PDF Reports**: Generate inventory/logs reports with filters (date, category, low stock)
 - **Database Management**: PIN-protected log cleanup to prevent database bloat
 - **Conflict Resolution**: Handles concurrent updates with delta-based merging
-- **Rapid Dispatch Mode**: Quick stock removal with IN/OUT toggle (mirroring Rapid Receive)
+- **Inventory Events**: Track non-stock movements like shipments, audits, and site visits
+- **Short Name/Code**: Optional SKU or short code field for products
+- **Events Export**: Export shipment/visit logs as CSV
+- **Enhanced Database Admin**: Server-side stats counting and batch cleanup
+- **Smart Imports**: Import products with Short Names/SKUs
 - **Category Standardization**: Export/Import workflow for external AI processing
 - **Category Autocomplete**: Searchable dropdown showing existing categories
 
@@ -91,6 +95,7 @@ When multiple users edit the same product (online or offline):
 | `Alt + R` | Rapid Receive/Dispatch Mode |
 | `Alt + D` | Go to Dashboard |
 | `Alt + I` | Go to Inventory |
+| `Alt + E` | Go to Events |
 | `Alt + ,` | Open Settings |
 | `Escape` | Close Modals/Dialogs |
 
@@ -103,11 +108,12 @@ When multiple users edit the same product (online or offline):
 
 ### Data Export (`src/lib/export.ts`)
 Available in the **Backup & Export** admin panel:
-1. **Full Backup (JSON)**: Complete data dump including inventory, logs, and users
-2. **Inventory CSV**: Spreadsheet-compatible format for inventory reporting
+1. **Full Backup (JSON)**: Complete data dump including inventory, logs, users, and events
+2. **Inventory CSV**: Spreadsheet-compatible format for inventory reporting (includes Short Names)
 3. **Logs CSV**: Transaction history export for auditing
+4. **Events CSV**: Shipment/Audit/Visit log export
 
-All exports are generated client-side and downloaded directly to the user's device.
+All exports fetch full server-side data when online to ensure completeness.
 
 ## Project Structure
 
@@ -118,6 +124,7 @@ src/
 │   ├── LoginScreen.tsx     # Authentication screen (Email/Password, Google, Demo)
 │   ├── Dashboard.tsx       # Overview stats and recent activity
 │   ├── Inventory.tsx       # Product list with advanced filters
+│   ├── InventoryEvents.tsx # Shipment/Visit tracking
 │   ├── RapidReceive.tsx    # Quick stock entry mode with IN/OUT toggle
 │   ├── Logs.tsx            # Audit trail table
 │   ├── Team.tsx            # User/role management (Admin)
@@ -147,6 +154,7 @@ src/
 │   └── useToastStore.ts    # Toast notifications
 ├── lib/
 │   ├── firebase.ts         # Firebase configuration
+│   ├── firestoreQueries.ts # On-demand Data Fetching
 │   ├── export.ts           # Data export utilities
 │   ├── imageUtils.ts       # Cloudinary upload utilities
 │   ├── conflictResolution.ts # Delta tracking and conflict detection
@@ -187,6 +195,7 @@ docs/
 ### Inventory
 - `id`: Unique ID
 - `name`: Product Name
+- `shortName`: (Optional) SKU/Code
 - `category`: Category (auto-converted to UPPERCASE)
 - `quantity`: Current Stock
 - `minStock`: Low stock threshold
@@ -205,6 +214,15 @@ docs/
 - `attachmentName`: Original filename of attachment
 - `timestamp`: Time of action
 
+### Events (New)
+- `id`: Unique ID
+- `type`: shipment / visit / audit / other
+- `description`: Text notes
+- `user`: Creator
+- `timestamp`: Time of event
+- `imageUrl`: Optional attachment
+
 ## Roles
-- **Admin**: Full access + Team Management + Edit Items + Backup & Export + Category Standardization
-- **Staff**: View, Add/Remove Stock, Rapid Receive/Dispatch, Add new categories
+- **Admin**: Full access + Team Management + Edit Items + Backup & Export + Category Standardization + Event Management
+- **Staff**: View, Add/Remove Stock, Rapid Receive/Dispatch, Add new categories, View Events
+
