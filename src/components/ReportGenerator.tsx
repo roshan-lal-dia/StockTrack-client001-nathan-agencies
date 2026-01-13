@@ -14,6 +14,8 @@ import { useToastStore } from '@/store/useToastStore';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+import { formatDate } from '@/types';
+
 type ReportType = 'inventory' | 'lowStock' | 'logs' | 'summary';
 
 export const ReportGenerator = () => {
@@ -53,17 +55,23 @@ export const ReportGenerator = () => {
     // Date filter for logs
     if (dateFrom || dateTo) {
       filteredLogs = filteredLogs.filter(log => {
-        let logDate: Date;
+        const logDate = formatDate(log.timestamp, 'date');
+        // Simple string comparison for DD/MM/YYYY might fail if we compare strings directly without parsing
+        // But here we need Date objects for range comparison.
+        // Let's use the parseDate helper we already have essentially logic for
+        // actually, let's keep the logic for FILTERING as Date objects, but use formatDate for DISPLAY.
+
+        let dateObj: Date;
         if (typeof log.timestamp === 'string') {
-          logDate = new Date(log.timestamp);
+          dateObj = new Date(log.timestamp);
         } else if (log.timestamp?.seconds) {
-          logDate = new Date(log.timestamp.seconds * 1000);
+          dateObj = new Date(log.timestamp.seconds * 1000);
         } else {
           return false;
         }
 
-        if (dateFrom && logDate < new Date(dateFrom)) return false;
-        if (dateTo && logDate > new Date(dateTo + 'T23:59:59')) return false;
+        if (dateFrom && dateObj < new Date(dateFrom)) return false;
+        if (dateTo && dateObj > new Date(dateTo + 'T23:59:59')) return false;
         return true;
       });
     }
@@ -151,7 +159,7 @@ export const ReportGenerator = () => {
 
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
-      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 28, { align: 'center' });
+      doc.text(`Generated: ${formatDate(new Date().toISOString(), 'datetime')}`, pageWidth / 2, 28, { align: 'center' });
 
       let yPosition = 40;
 
@@ -233,12 +241,7 @@ export const ReportGenerator = () => {
         const logsToPrint = filteredLogs.slice(0, 2000);
 
         const logsData = logsToPrint.map(log => {
-          let dateStr = '';
-          if (typeof log.timestamp === 'string') {
-            dateStr = new Date(log.timestamp).toLocaleDateString();
-          } else if (log.timestamp?.seconds) {
-            dateStr = new Date(log.timestamp.seconds * 1000).toLocaleDateString();
-          }
+          const dateStr = formatDate(log.timestamp, 'date');
 
           return [
             log.type.toUpperCase(),
@@ -379,8 +382,8 @@ export const ReportGenerator = () => {
                 key={value}
                 onClick={() => setReportType(value as ReportType)}
                 className={`p-3 rounded-lg border text-sm font-medium flex items-center gap-2 transition-all ${reportType === value
-                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                    : 'border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
+                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                  : 'border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
               >
                 <Icon size={16} />

@@ -33,14 +33,19 @@ export const formatDate = (dateField: DateField | undefined | null, format: 'dat
   const date = parseDate(dateField);
   if (!date) return 'N/A';
 
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  const dateStr = `${day}/${month}/${year}`;
+
   switch (format) {
     case 'date':
-      return date.toLocaleDateString();
+      return dateStr;
     case 'time':
-      return date.toLocaleTimeString();
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     case 'datetime':
     default:
-      return date.toLocaleString();
+      return `${dateStr} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }
 };
 
