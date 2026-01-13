@@ -15,6 +15,7 @@ interface CSVRow {
   minStock?: string | number;
   location?: string;
   notes?: string;
+  shortName?: string;
 }
 
 interface ParsedItem {
@@ -24,6 +25,7 @@ interface ParsedItem {
   minStock: number;
   location: string;
   notes: string;
+  shortName?: string;
   status: 'valid' | 'duplicate' | 'invalid';
   error?: string;
 }
@@ -59,7 +61,8 @@ export const CSVImport = () => {
           const quantity = parseInt(String(row.quantity)) || 0;
           const minStock = parseInt(String(row.minStock)) || 5;
           const normalizedCategory = normalizeCategory(row.category?.trim() || 'UNCATEGORIZED');
-          
+          const shortName = row.shortName?.trim();
+
           // Check for duplicates
           const existingItem = inventory.find(
             i => i.name.toLowerCase() === name.toLowerCase()
@@ -73,6 +76,7 @@ export const CSVImport = () => {
               minStock,
               location: row.location?.trim() || '',
               notes: row.notes?.trim() || '',
+              shortName,
               status: 'invalid',
               error: 'Name is required'
             };
@@ -86,6 +90,7 @@ export const CSVImport = () => {
               minStock,
               location: row.location?.trim() || '',
               notes: row.notes?.trim() || '',
+              shortName,
               status: 'duplicate',
               error: 'Product already exists'
             };
@@ -98,6 +103,7 @@ export const CSVImport = () => {
             minStock,
             location: row.location?.trim() || '',
             notes: row.notes?.trim() || '',
+            shortName,
             status: 'valid'
           };
         });
@@ -118,7 +124,7 @@ export const CSVImport = () => {
 
   const handleImport = async () => {
     const validItems = parsedItems.filter(item => item.status === 'valid');
-    
+
     if (validItems.length === 0) {
       addToast('No valid items to import', 'error');
       return;
@@ -131,10 +137,10 @@ export const CSVImport = () => {
     try {
       for (let i = 0; i < validItems.length; i++) {
         const item = validItems[i];
-        
+
         if (isFirebaseConfigured) {
           // Firebase mode - fire and forget for speed
-          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
+          const itemData: any = {
             name: item.name,
             category: item.category,
             quantity: item.quantity,
@@ -142,7 +148,11 @@ export const CSVImport = () => {
             location: item.location,
             notes: item.notes,
             lastUpdated: serverTimestamp()
-          }).catch(err => console.warn('Sync pending:', err.message));
+          };
+          if (item.shortName) itemData.shortName = item.shortName;
+
+          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), itemData)
+            .catch(err => console.warn('Sync pending:', err.message));
 
           addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
             type: 'create',
@@ -161,10 +171,11 @@ export const CSVImport = () => {
             minStock: item.minStock,
             location: item.location,
             notes: item.notes,
-            lastUpdated: now
+            lastUpdated: now,
+            shortName: item.shortName
           };
           addInventoryItem(newItem);
-          
+
           addLog({
             id: generateId(),
             type: 'create',
@@ -176,7 +187,7 @@ export const CSVImport = () => {
         }
 
         setImportProgress(Math.round(((i + 1) / validItems.length) * 100));
-        
+
         // Small delay to prevent overwhelming
         if (i % 10 === 0) {
           await new Promise(resolve => setTimeout(resolve, 50));
@@ -195,7 +206,7 @@ export const CSVImport = () => {
   };
 
   const downloadTemplate = () => {
-    const template = 'name,category,quantity,minStock,location,notes\nWidget A,Electronics,100,10,Shelf A-1,Sample product\nWidget B,Hardware,50,5,Shelf B-2,Another product';
+    const template = 'name,shortName,category,quantity,minStock,location,notes\nWidget A,WGT-A,Electronics,100,10,Shelf A-1,Sample product\nWidget B,,Hardware,50,5,Shelf B-2,Another product';
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -317,7 +328,7 @@ export const CSVImport = () => {
           {isImporting && (
             <div className="mb-6">
               <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-indigo-600 transition-all duration-300"
                   style={{ width: `${importProgress}%` }}
                 />

@@ -1,19 +1,20 @@
-import { useState } from 'react';
-import { 
-  LayoutDashboard, 
-  Package, 
-  Zap, 
-  History, 
-  Users, 
-  Box, 
-  Menu, 
+import { useState, useEffect } from 'react';
+import {
+  LayoutDashboard,
+  Package,
+  Zap,
+  History,
+  Users,
+  Box,
+  Menu,
   WifiOff,
   LogOut,
   Download,
   Settings,
   Search,
   AlertTriangle,
-  Smartphone
+  Smartphone,
+  Truck
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { auth } from '@/lib/firebase';
@@ -34,7 +35,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
   const { addToast } = useToastStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
-  
+
   const { canPrompt, isInstalled, platform, promptInstall } = usePWAInstall();
 
   const lowStockCount = inventory.filter(item => item.quantity <= item.minStock).length;
@@ -49,8 +50,42 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
     }
     return { text: 'ONLINE', color: 'bg-emerald-500' };
   };
-  
+
   const statusInfo = getStatusInfo();
+
+  useEffect(() => {
+    // Check for backup reminder
+    const { lastBackupDate } = useStore.getState();
+    if (lastBackupDate) {
+      let last: Date;
+      try {
+        if (lastBackupDate instanceof Date) {
+          last = lastBackupDate;
+        } else if (typeof lastBackupDate === 'string') {
+          last = new Date(lastBackupDate);
+        } else if (lastBackupDate && typeof (lastBackupDate as any).toDate === 'function') {
+          last = (lastBackupDate as any).toDate();
+        } else if (lastBackupDate && typeof (lastBackupDate as any).seconds === 'number') {
+          last = new Date((lastBackupDate as any).seconds * 1000);
+        } else {
+          last = new Date(); // Fallback
+        }
+      } catch (e) {
+        console.error('Error parsing lastBackupDate', e);
+        last = new Date();
+      }
+
+      const diffTime = Math.abs(new Date().getTime() - last.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      console.log(`Days since last backup: ${diffDays}`);
+
+      if (diffDays > 30) {
+        addToast('It has been over 30 days since your last backup. Please download a backup soon.', 'info');
+      }
+    } else {
+      console.log('No backup date found (never backed up or sync pending)');
+    }
+  }, [addToast]);
 
   const handleSignOut = async () => {
     try {
@@ -63,17 +98,16 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
   };
 
   const NavItem = ({ view, icon: Icon, label, highlight, badge }: { view: string, icon: typeof Box, label: string, highlight?: boolean, badge?: number }) => (
-    <button 
+    <button
       onClick={() => { onViewChange(view as any); setMobileMenuOpen(false); }}
-      className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium ${
-        currentView === view 
-          ? highlight 
-            ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20' 
-            : 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' 
-          : 'hover:bg-slate-800 text-slate-400 hover:text-white'
-      }`}
+      className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium ${currentView === view
+        ? highlight
+          ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20'
+          : 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20'
+        : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+        }`}
     >
-      <Icon size={20} /> 
+      <Icon size={20} />
       <span className="flex-1 text-left">{label}</span>
       {badge && badge > 0 && (
         <span className="px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">
@@ -87,21 +121,24 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100 flex flex-col md:flex-row overflow-hidden">
       {/* MOBILE NAV */}
       <div className="md:hidden bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center sticky top-0 z-40">
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={() => onViewChange('dashboard')}
+        >
           <Box className="text-indigo-600" size={24} />
           <h1 className="font-bold text-slate-800 dark:text-white">StockTrack</h1>
         </div>
         <div className="flex items-center gap-2">
           {isOffline && <WifiOff size={20} className="text-rose-500 animate-pulse" />}
-          <button 
-            onClick={onOpenCommandPalette} 
+          <button
+            onClick={onOpenCommandPalette}
             className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"
             aria-label="Search"
           >
             <Search size={20} className="text-slate-600 dark:text-slate-300" />
           </button>
-          <button 
-            onClick={() => setMobileMenuOpen(true)} 
+          <button
+            onClick={() => setMobileMenuOpen(true)}
             className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"
             aria-label="Menu"
           >
@@ -116,8 +153,11 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 shadow-2xl md:shadow-none
       `}>
         <div className="p-6">
-          <div className="flex items-center gap-3 mb-6 text-white">
-            <div className="p-2 bg-indigo-600 rounded-lg">
+          <div
+            className="flex items-center gap-3 mb-6 text-white cursor-pointer group"
+            onClick={() => { onViewChange('dashboard'); setMobileMenuOpen(false); }}
+          >
+            <div className="p-2 bg-indigo-600 rounded-lg group-hover:bg-indigo-500 transition-colors">
               <Box size={24} className="text-white" />
             </div>
             <div className="flex-1">
@@ -128,7 +168,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
               </div>
             </div>
           </div>
-          
+
           {/* Sync Status */}
           <div className="mb-4">
             <SyncIndicator />
@@ -160,7 +200,8 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
             <NavItem view="inventory" icon={Package} label="Inventory" badge={inventory.length} />
             <NavItem view="rapid-receive" icon={Zap} label="Rapid Mode" highlight />
             <NavItem view="history" icon={History} label="Logs" />
-            
+            <NavItem view="events" icon={Truck} label="Events" />
+
             {role === 'admin' && (
               <div className="pt-4 mt-4 border-t border-slate-800">
                 <p className="px-4 text-xs font-bold text-slate-600 uppercase mb-2">Admin Zone</p>
@@ -168,7 +209,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
                 <NavItem view="backup" icon={Download} label="Backup & Export" />
               </div>
             )}
-            
+
             {/* Install App Button - Only show if not installed */}
             {!isInstalled && (
               <div className="pt-4 mt-4 border-t border-slate-800">
@@ -215,7 +256,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
         <div className="mt-auto p-6 border-t border-slate-800 space-y-3">
           {/* Settings */}
           <NavItem view="settings" icon={Settings} label="Settings" />
-          
+
           <div className="flex items-center gap-3 pt-3 border-t border-slate-800">
             <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-indigo-400 font-bold border border-slate-700">
               {userProfile?.name.charAt(0) || 'U'}
@@ -249,7 +290,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
           {children}
         </div>
       </main>
-      
+
       {/* Install Modal */}
       <InstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
     </div>

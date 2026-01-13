@@ -1,5 +1,7 @@
-import { X, Package, MapPin, Tag, Clock, ArrowDownCircle, Edit, Trash2 } from 'lucide-react';
-import { InventoryItem, formatDate } from '@/types';
+import { useState, useEffect } from 'react';
+import { X, Package, MapPin, Tag, Clock, ArrowDownCircle, Edit, Trash2, Loader2 } from 'lucide-react';
+import { fetchLogsByItem } from '@/lib/firestoreQueries';
+import { InventoryItem, LogItem, formatDate } from '@/types';
 import { useStore } from '@/store/useStore';
 
 interface ItemDetailDrawerProps {
@@ -19,17 +21,30 @@ export const ItemDetailDrawer = ({
   onTransaction,
   onDelete,
 }: ItemDetailDrawerProps) => {
-  const { logs, role } = useStore();
+  const { role } = useStore();
+
+  const [historyLogs, setHistoryLogs] = useState<LogItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Fetch history when drawer opens or item changes
+  useEffect(() => {
+    if (isOpen && item) {
+      setLoadingHistory(true);
+      fetchLogsByItem(item.name)
+        .then(fetchedLogs => {
+          setHistoryLogs(fetchedLogs);
+        })
+        .catch(err => console.error(err))
+        .finally(() => setLoadingHistory(false));
+    }
+  }, [isOpen, item]);
 
   if (!isOpen || !item) return null;
 
   const isLowStock = item.quantity <= item.minStock;
   const isOutOfStock = item.quantity === 0;
-  
-  // Get recent logs for this item
-  const itemLogs = logs
-    .filter(log => log.itemName === item.name)
-    .slice(0, 10);
+
+  const itemLogs = historyLogs;
 
   return (
     <>
@@ -38,24 +53,23 @@ export const ItemDetailDrawer = ({
         className="fixed inset-0 bg-black/50 z-[55] backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
-      
+
       {/* Drawer */}
       <div className="fixed inset-y-0 right-0 w-full max-w-md bg-white dark:bg-slate-800 z-[56] shadow-2xl animate-slide-in-right overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between">
           <div className="flex items-start gap-4">
-            <div className={`p-3 rounded-xl ${
-              isOutOfStock 
-                ? 'bg-rose-100 dark:bg-rose-900/30' 
-                : isLowStock 
-                  ? 'bg-amber-100 dark:bg-amber-900/30' 
-                  : 'bg-indigo-100 dark:bg-indigo-900/30'
-            }`}>
+            <div className={`p-3 rounded-xl ${isOutOfStock
+              ? 'bg-rose-100 dark:bg-rose-900/30'
+              : isLowStock
+                ? 'bg-amber-100 dark:bg-amber-900/30'
+                : 'bg-indigo-100 dark:bg-indigo-900/30'
+              }`}>
               <Package size={24} className={
-                isOutOfStock 
-                  ? 'text-rose-600 dark:text-rose-400' 
-                  : isLowStock 
-                    ? 'text-amber-600 dark:text-amber-400' 
+                isOutOfStock
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : isLowStock
+                    ? 'text-amber-600 dark:text-amber-400'
                     : 'text-indigo-600 dark:text-indigo-400'
               } />
             </div>
@@ -90,13 +104,12 @@ export const ItemDetailDrawer = ({
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl">
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Current Stock</p>
-              <p className={`text-2xl font-bold ${
-                isOutOfStock 
-                  ? 'text-rose-600 dark:text-rose-400' 
-                  : isLowStock 
-                    ? 'text-amber-600 dark:text-amber-400' 
-                    : 'text-slate-800 dark:text-white'
-              }`}>
+              <p className={`text-2xl font-bold ${isOutOfStock
+                ? 'text-rose-600 dark:text-rose-400'
+                : isLowStock
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-slate-800 dark:text-white'
+                }`}>
                 {item.quantity}
               </p>
             </div>
@@ -143,18 +156,20 @@ export const ItemDetailDrawer = ({
 
           {/* Recent Activity */}
           <div>
-            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Recent Activity</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase">Product History</h3>
+              {loadingHistory && <Loader2 size={12} className="text-indigo-600 animate-spin" />}
+            </div>
             {itemLogs.length > 0 ? (
               <div className="space-y-2">
                 {itemLogs.map(log => (
                   <div key={log.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      log.type === 'in' 
-                        ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' 
-                        : log.type === 'out'
-                          ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400'
-                          : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
-                    }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${log.type === 'in'
+                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
+                      : log.type === 'out'
+                        ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400'
+                        : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
+                      }`}>
                       {log.type === 'in' ? '+' : log.type === 'out' ? '-' : '✦'}
                     </div>
                     <div className="flex-1">

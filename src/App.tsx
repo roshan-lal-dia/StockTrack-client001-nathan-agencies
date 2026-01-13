@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { onSnapshot, collection, doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { onSnapshot, collection, doc, getDoc, setDoc, serverTimestamp, Timestamp, query, orderBy, limit } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useStore } from '@/store/useStore';
 import { initializeTheme, useThemeStore } from '@/store/useThemeStore';
@@ -17,21 +17,22 @@ import { ToastContainer } from '@/components/Toast';
 import { CommandPalette } from '@/components/CommandPalette';
 import { LoginScreen } from '@/components/LoginScreen';
 import { ConflictResolver } from '@/components/ConflictResolver';
-import { InventoryItem, LogItem, UserProfile } from '@/types';
-import { 
-  detectConflict, 
-  getLastSyncTime, 
-  setLastSyncTime, 
+import { InventoryEvents } from '@/components/InventoryEvents';
+import { InventoryItem, LogItem, UserProfile, InventoryEvent } from '@/types';
+import {
+  detectConflict,
+  getLastSyncTime,
+  setLastSyncTime,
   addConflict,
   clearSyncedChanges
 } from '@/lib/conflictResolution';
 
-type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'settings';
+type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'settings' | 'events';
 
 function App() {
-  const { 
-    user, userProfile, setUser, setUserProfile, setRole, 
-    setInventory, setLogs, setUsersList, setLoading, 
+  const {
+    user, userProfile, setUser, setUserProfile, setRole,
+    setInventory, setLogs, setUsersList, setLoading,
     loading, role, setIsOffline, isFirebaseConfigured
   } = useStore();
 
@@ -54,13 +55,13 @@ function App() {
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
-    
+
     // Set initial state
     setIsOffline(!navigator.onLine);
-    
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -72,43 +73,43 @@ function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip if in input fields (except for Escape)
       const isInInput = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName);
-      
+
       // Command palette: Alt + K or Ctrl + K
       if (e.altKey && e.key === 'k') {
         e.preventDefault();
         setCommandPaletteOpen(true);
       }
-      
+
       // New item: Alt + N
       if (e.altKey && e.key === 'n' && !isInInput) {
         e.preventDefault();
         setActiveModal('add');
       }
-      
+
       // Rapid receive: Alt + R
       if (e.altKey && e.key === 'r' && !isInInput) {
         e.preventDefault();
         setView('rapid-receive');
       }
-      
+
       // Settings: Alt + ,
       if (e.altKey && e.key === ',') {
         e.preventDefault();
         setView('settings');
       }
-      
+
       // Dashboard: Alt + D
       if (e.altKey && e.key === 'd' && !isInInput) {
         e.preventDefault();
         setView('dashboard');
       }
-      
+
       // Inventory: Alt + I
       if (e.altKey && e.key === 'i' && !isInInput) {
         e.preventDefault();
         setView('inventory');
       }
-      
+
       // Escape to close modals
       if (e.key === 'Escape') {
         if (commandPaletteOpen) setCommandPaletteOpen(false);
@@ -118,7 +119,7 @@ function App() {
         }
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [commandPaletteOpen, activeModal]);
@@ -151,12 +152,12 @@ function App() {
     // Check if Firebase is properly configured
     const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
     const isConfigured = apiKey && apiKey !== 'YOUR_API_KEY' && !apiKey.includes('YOUR_');
-    
+
     if (!isConfigured) {
       // Offline mode - no Firebase
       console.log('Firebase not configured - running in offline mode');
       useStore.getState().setIsFirebaseConfigured(false);
-      
+
       // Set default user profile for offline mode
       if (!userProfile) {
         setUserProfile({
@@ -199,25 +200,25 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setAuthChecked(true);
       setUser(u);
-      
+
       if (u) {
         setShowLogin(false);
         try {
           const userRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', u.uid);
           const snap = await getDoc(userRef);
-          
+
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
             setUserProfile(data);
             setRole(data.role);
-            
+
             // Cache auth for offline access
             const profileWithStringDate = { ...data, lastActive: new Date().toISOString() };
             localStorage.setItem('stocktrack_cached_auth', JSON.stringify({
               profile: profileWithStringDate,
               timestamp: Date.now()
             }));
-            
+
             // Update last active (don't await - fire and forget)
             setDoc(userRef, { lastActive: serverTimestamp() }, { merge: true })
               .catch(err => console.warn('Failed to update lastActive:', err.message));
@@ -225,10 +226,10 @@ function App() {
             // New user - check for pending name from registration
             const pendingName = localStorage.getItem('pendingUserName');
             localStorage.removeItem('pendingUserName');
-            
+
             // Determine display name
             const displayName = pendingName || u.displayName || (u.email ? u.email.split('@')[0] : `User ${u.uid.substring(0, 4)}`);
-            
+
             const newProfile: UserProfile = {
               uid: u.uid,
               role: 'staff', // Default to staff, admin can promote
@@ -240,7 +241,7 @@ function App() {
             const profileWithStringDate = { ...newProfile, lastActive: new Date().toISOString() };
             setUserProfile(profileWithStringDate);
             setRole(newProfile.role);
-            
+
             // Cache auth for offline access
             localStorage.setItem('stocktrack_cached_auth', JSON.stringify({
               profile: profileWithStringDate,
@@ -264,7 +265,7 @@ function App() {
               console.error('Failed to parse cached auth');
             }
           }
-          
+
           // Complete fallback to offline mode
           useStore.getState().setIsFirebaseConfigured(false);
           if (!userProfile) {
@@ -282,7 +283,7 @@ function App() {
         // No user - check for cached offline auth
         const cachedAuth = localStorage.getItem('stocktrack_cached_auth');
         const isOffline = !navigator.onLine;
-        
+
         if (isOffline && cachedAuth) {
           try {
             const cached = JSON.parse(cachedAuth);
@@ -297,7 +298,7 @@ function App() {
             console.error('Failed to parse cached auth');
           }
         }
-        
+
         // No cached auth - show login screen
         setShowLogin(true);
         setLoading(false);
@@ -317,10 +318,10 @@ function App() {
       (snapshot) => {
         const { inventory: localInventory } = useStore.getState();
         const lastSync = getLastSyncTime();
-        
+
         const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as InventoryItem));
         items.sort((a, b) => a.name.localeCompare(b.name));
-        
+
         // Check for conflicts between local and server versions
         items.forEach(serverItem => {
           const localItem = localInventory.find(i => i.id === serverItem.id);
@@ -331,11 +332,11 @@ function App() {
             }
           }
         });
-        
+
         // Update sync time and clear synced changes
         setLastSyncTime();
         clearSyncedChanges();
-        
+
         setInventory(items);
         setLoading(false);
       },
@@ -345,14 +346,14 @@ function App() {
     );
 
     const unsubLogs = onSnapshot(
-      collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'),
+      query(
+        collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'),
+        limit(50),
+        orderBy('timestamp', 'desc') // Keep this if single-field index exists, otherwise remove
+      ),
       (snapshot) => {
         const logsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as LogItem));
-        logsData.sort((a, b) => {
-          const aTime = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : (a.timestamp?.seconds || 0) * 1000;
-          const bTime = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : (b.timestamp?.seconds || 0) * 1000;
-          return bTime - aTime;
-        });
+        // Logic remains same (backend sorted usually)
         setLogs(logsData);
       },
       (error) => {
@@ -371,7 +372,26 @@ function App() {
       }
     );
 
-    return () => { unsubInv(); unsubLogs(); unsubUsers(); };
+    const unsubEvents = onSnapshot(
+      query(
+        collection(db, 'artifacts', APP_ID, 'public', 'data', 'events'),
+        limit(100)
+        // Removed orderBy to ensure it works without composite index initially
+      ),
+      (snapshot) => {
+        const eventsList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as InventoryEvent));
+        // Sort by timestamp desc client-side
+        eventsList.sort((a, b) => {
+          const aTime = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : (a.timestamp?.seconds || 0) * 1000;
+          const bTime = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : (b.timestamp?.seconds || 0) * 1000;
+          return bTime - aTime;
+        });
+        useStore.getState().setInventoryEvents(eventsList);
+      },
+      (error) => console.error('Events listener error:', error)
+    );
+
+    return () => { unsubInv(); unsubLogs(); unsubUsers(); unsubEvents(); };
   }, [user]);
 
   if (loading) return (
@@ -388,44 +408,45 @@ function App() {
 
   return (
     <>
-      <Layout 
-        currentView={view} 
+      <Layout
+        currentView={view}
         onViewChange={setView}
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
       >
         {view === 'dashboard' && <Dashboard onNavigate={setView} />}
         {view === 'inventory' && (
-          <Inventory 
-            onNavigate={setView} 
+          <Inventory
+            onNavigate={setView}
             onOpenModal={(type, item, txType) => {
               setActiveModal(type);
               setSelectedItem(item || null);
               if (txType) setInitialTransactionType(txType);
-            }} 
+            }}
           />
         )}
         {view === 'rapid-receive' && <RapidReceive />}
         {view === 'history' && <Logs />}
+        {view === 'events' && <InventoryEvents />}
         {view === 'team' && role === 'admin' && <Team />}
         {view === 'backup' && role === 'admin' && <Backup />}
         {view === 'settings' && <Settings />}
 
-        <Modals 
-          activeModal={activeModal} 
+        <Modals
+          activeModal={activeModal}
           selectedItem={selectedItem}
           initialTransactionType={initialTransactionType}
-          onClose={() => { setActiveModal('none'); setSelectedItem(null); setInitialTransactionType('in'); }} 
+          onClose={() => { setActiveModal('none'); setSelectedItem(null); setInitialTransactionType('in'); }}
         />
       </Layout>
 
       {/* Global Components */}
       <ToastContainer />
-      <CommandPalette 
-        isOpen={commandPaletteOpen} 
+      <CommandPalette
+        isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
         onNavigate={handleCommandSelect}
       />
-      
+
       {/* Conflict Resolution */}
       <ConflictResolver />
     </>

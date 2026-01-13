@@ -47,5 +47,13 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && 
         get(/databases/$(database)/documents/artifacts/$(appId)/public/data/users/$(request.auth.uid)).data.role == 'admin';
     }
+
+    // Events collection - all authenticated can read/create/update/delete
+    match /artifacts/{appId}/public/data/events/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
   }
 }

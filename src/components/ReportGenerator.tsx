@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
-import { 
-  FileText, 
-  Download, 
-  Calendar, 
-  Filter, 
+import {
+  FileText,
+  Download,
+  Calendar,
+  Filter,
   Loader2,
   Check,
   AlertTriangle,
@@ -19,7 +19,7 @@ type ReportType = 'inventory' | 'lowStock' | 'logs' | 'summary';
 export const ReportGenerator = () => {
   const { inventory, logs } = useStore();
   const { addToast } = useToastStore();
-  
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [reportType, setReportType] = useState<ReportType>('inventory');
   const [dateFrom, setDateFrom] = useState('');
@@ -75,19 +75,84 @@ export const ReportGenerator = () => {
     setIsGenerating(true);
 
     try {
-      const { filteredInventory, filteredLogs } = getFilteredData();
+      // Get base data
+      let { filteredInventory, filteredLogs } = getFilteredData();
+
+      // If online and needing logs, fetch FULL history from server
+      const { isFirebaseConfigured } = useStore.getState();
+      const needsLogs = reportType === 'logs' || reportType === 'summary';
+
+      if (isFirebaseConfigured && needsLogs) {
+        try {
+          const { collection, query, where, getDocs, orderBy, Timestamp } = await import('firebase/firestore');
+          const { db } = await import('@/lib/firebase');
+          const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+
+          let q = query(
+            collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'),
+            orderBy('timestamp', 'desc')
+          );
+
+          // Apply server-side date filters if they exist
+          if (dateFrom || dateTo) {
+            const constraints = [];
+            if (dateFrom) constraints.push(where('timestamp', '>=', Timestamp.fromDate(new Date(dateFrom))));
+            // Add one day to include the end date fully
+            if (dateTo) {
+              const endDate = new Date(dateTo);
+              endDate.setHours(23, 59, 59, 999);
+              constraints.push(where('timestamp', '<=', Timestamp.fromDate(endDate)));
+            }
+            // Note: Firestore requires composite index for rangefilter + sort. 
+            // If this fails, we might need to remove orderBy or rely on index creation.
+            // For now, let's keep it simple: fetch then filter/sort in memory if needed, 
+            // OR assume the user has created the index if they see an error (which we can catch).
+            // Actuall, to avoid index hell, let's just fetch by date range (if any) and sort client-side.
+            q = query(
+              collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'),
+              ...constraints
+            );
+          }
+
+          const snapshot = await getDocs(q);
+          const serverLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+
+          // Apply client-side category filter to these server logs
+          if (categoryFilter !== 'all') {
+            filteredLogs = serverLogs.filter(l => {
+              const item = inventory.find(i => i.name === l.itemName);
+              return item?.category === categoryFilter;
+            });
+          } else {
+            filteredLogs = serverLogs;
+          }
+
+          // Sort if we removed the orderBy
+          filteredLogs.sort((a, b) => {
+            const tA = a.timestamp?.seconds || 0;
+            const tB = b.timestamp?.seconds || 0;
+            return tB - tA;
+          });
+
+        } catch (err) {
+          console.error("Failed to fetch server logs for report", err);
+          addToast('Using cached logs (server fetch failed)', 'warning');
+          // Fallback to local 'filteredLogs' which is already set
+        }
+      }
+
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
-      
+
       // Header
       doc.setFontSize(20);
       doc.setTextColor(51, 51, 51);
       doc.text('StockTrack Pro Report', pageWidth / 2, 20, { align: 'center' });
-      
+
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
       doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 28, { align: 'center' });
-      
+
       let yPosition = 40;
 
       if (reportType === 'inventory' || reportType === 'summary') {
@@ -126,7 +191,7 @@ export const ReportGenerator = () => {
       if (reportType === 'lowStock') {
         // Low Stock Items
         const lowStockItems = filteredInventory.filter(i => i.quantity <= i.minStock);
-        
+
         doc.setFontSize(14);
         doc.setTextColor(220, 38, 38);
         doc.text(`Low Stock Alert (${lowStockItems.length} items)`, 14, yPosition);
@@ -161,10 +226,13 @@ export const ReportGenerator = () => {
 
         doc.setFontSize(14);
         doc.setTextColor(51, 51, 51);
-        doc.text('Transaction Logs', 14, yPosition);
+        doc.text(`Transaction Logs (${filteredLogs.length})`, 14, yPosition);
         yPosition += 8;
 
-        const logsData = filteredLogs.slice(0, 100).map(log => {
+        // Limit PDF rows to avoid crashing browser if too many (e.g. 5000 is safe-ish)
+        const logsToPrint = filteredLogs.slice(0, 2000);
+
+        const logsData = logsToPrint.map(log => {
           let dateStr = '';
           if (typeof log.timestamp === 'string') {
             dateStr = new Date(log.timestamp).toLocaleDateString();
@@ -198,7 +266,15 @@ export const ReportGenerator = () => {
           }
         });
 
-        yPosition = (doc as any).lastAutoTable.finalY + 15;
+        if (filteredLogs.length > 2000) {
+          const finalY = (doc as any).lastAutoTable.finalY + 5;
+          doc.setFontSize(10);
+          doc.setTextColor(150, 150, 150);
+          doc.text(`* Showing first 2000 of ${filteredLogs.length} logs to prevent PDF size limit`, 14, finalY);
+          yPosition = finalY + 15;
+        } else {
+          yPosition = (doc as any).lastAutoTable.finalY + 15;
+        }
       }
 
       if (reportType === 'summary') {
@@ -218,7 +294,7 @@ export const ReportGenerator = () => {
         const totalStock = filteredInventory.reduce((sum, i) => sum + i.quantity, 0);
         const lowStock = filteredInventory.filter(i => i.quantity <= i.minStock).length;
         const categoriesCount = new Set(filteredInventory.map(i => i.category)).size;
-        
+
         const inLogs = filteredLogs.filter(l => l.type === 'in');
         const outLogs = filteredLogs.filter(l => l.type === 'out');
         const totalReceived = inLogs.reduce((sum, l) => sum + (l.quantity || 0), 0);
@@ -260,7 +336,7 @@ export const ReportGenerator = () => {
       // Save the PDF
       const fileName = `stocktrack-${reportType}-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
-      
+
       addToast(`Report downloaded: ${fileName}`, 'success');
     } catch (err) {
       console.error('PDF generation error:', err);
@@ -302,11 +378,10 @@ export const ReportGenerator = () => {
               <button
                 key={value}
                 onClick={() => setReportType(value as ReportType)}
-                className={`p-3 rounded-lg border text-sm font-medium flex items-center gap-2 transition-all ${
-                  reportType === value
+                className={`p-3 rounded-lg border text-sm font-medium flex items-center gap-2 transition-all ${reportType === value
                     ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                     : 'border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
-                }`}
+                  }`}
               >
                 <Icon size={16} />
                 {label}

@@ -11,18 +11,18 @@ export type DateField = Timestamp | string;
  */
 export const parseDate = (dateField: DateField | undefined | null): Date | null => {
   if (!dateField) return null;
-  
+
   // If it's a string (offline mode)
   if (typeof dateField === 'string') {
     const parsed = new Date(dateField);
     return isNaN(parsed.getTime()) ? null : parsed;
   }
-  
+
   // If it's a Firestore Timestamp (online mode)
   if (dateField && typeof dateField === 'object' && 'seconds' in dateField) {
     return new Date(dateField.seconds * 1000);
   }
-  
+
   return null;
 };
 
@@ -32,7 +32,7 @@ export const parseDate = (dateField: DateField | undefined | null): Date | null 
 export const formatDate = (dateField: DateField | undefined | null, format: 'date' | 'time' | 'datetime' = 'datetime'): string => {
   const date = parseDate(dateField);
   if (!date) return 'N/A';
-  
+
   switch (format) {
     case 'date':
       return date.toLocaleDateString();
@@ -47,6 +47,7 @@ export const formatDate = (dateField: DateField | undefined | null, format: 'dat
 export interface InventoryItem {
   id: string;
   name: string;
+  shortName?: string;
   category: string;
   quantity: number;
   minStock: number;
@@ -77,4 +78,14 @@ export interface UserProfile {
   email?: string;
   photoUrl?: string;
   lastActive: DateField;
+}
+
+export interface InventoryEvent {
+  id: string;
+  type: 'shipment' | 'visit' | 'audit' | 'other';
+  description: string;
+  timestamp: DateField;
+  user: string;
+  imageUrl?: string;
+  thumbnailUrl?: string; // Optimized Cloudinary thumbnail
 }

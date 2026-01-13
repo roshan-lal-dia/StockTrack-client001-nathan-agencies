@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
-import { 
-  Search, 
-  Plus, 
-  Zap, 
-  AlertTriangle, 
-  ArrowDownCircle, 
-  ArrowUpCircle, 
+import {
+  Search,
+  Plus,
+  Zap,
+  AlertTriangle,
+  ArrowDownCircle,
+  ArrowUpCircle,
   Package,
   Filter,
   SortAsc,
@@ -26,6 +26,7 @@ import { deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { PrintLabels } from './PrintLabels';
 import { ImageViewer, ImageThumbnail } from './ImageViewer';
+import { ItemDetailDrawer } from './ItemDetailDrawer';
 
 interface InventoryProps {
   onNavigate: (view: 'rapid-receive') => void;
@@ -37,17 +38,18 @@ type SortOrder = 'asc' | 'desc';
 type StockFilter = 'all' | 'low' | 'ok' | 'out' | 'favorites';
 
 export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
-  const { inventory, role, favorites, toggleFavorite, deleteInventoryItem, isFirebaseConfigured, addLog, userProfile } = useStore();
+  const { inventory, role, favorites, toggleFavorite, deleteInventoryItem, isFirebaseConfigured } = useStore();
   const { addToast } = useToastStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<InventoryItem | null>(null);
+  const [detailedItem, setDetailedItem] = useState<InventoryItem | null>(null);
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
   const handleDeleteItem = async () => {
     if (!deleteConfirm) return;
-    
+
     const itemToDelete = deleteConfirm;
     setDeleteConfirm(null);
     addToast(`Deleted "${itemToDelete.name}"`, 'success');
@@ -102,8 +104,9 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
     // Text search
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(i => 
-        i.name.toLowerCase().includes(q) || 
+      result = result.filter(i =>
+        i.name.toLowerCase().includes(q) ||
+        (i.shortName && i.shortName.toLowerCase().includes(q)) ||
         i.category.toLowerCase().includes(q) ||
         i.location.toLowerCase().includes(q)
       );
@@ -163,7 +166,7 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
           </p>
         </div>
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
-          <button 
+          <button
             onClick={() => setShowScanner(true)}
             className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2"
             title="Scan Barcode"
@@ -171,7 +174,7 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
             <ScanBarcode size={18} />
             <span className="hidden sm:inline">Scan</span>
           </button>
-          <button 
+          <button
             onClick={() => setShowPrintLabels(true)}
             className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2"
             title="Print Labels"
@@ -179,13 +182,13 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
             <Printer size={18} />
             <span className="hidden sm:inline">Labels</span>
           </button>
-          <button 
+          <button
             onClick={() => onNavigate('rapid-receive')}
             className="flex-1 md:flex-none px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center justify-center gap-2"
           >
             <Zap size={18} /> Rapid Add
           </button>
-          <button 
+          <button
             onClick={() => onOpenModal('add')}
             className="flex-1 md:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30"
           >
@@ -199,9 +202,9 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-            <input 
-              type="text" 
-              placeholder="Search by name, category, or location..." 
+            <input
+              type="text"
+              placeholder="Search by name, category, or location..."
               className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm outline-none transition-all text-slate-800 dark:text-white placeholder-slate-400"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -209,11 +212,10 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-3 rounded-xl border transition-colors flex items-center gap-2 ${
-              showFilters || activeFiltersCount > 0
-                ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400'
-                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-            }`}
+            className={`px-4 py-3 rounded-xl border transition-colors flex items-center gap-2 ${showFilters || activeFiltersCount > 0
+              ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400'
+              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
           >
             <Filter size={18} />
             {activeFiltersCount > 0 && (
@@ -323,98 +325,103 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-20 flex-1 overflow-y-auto">
         {filteredInventory.map(item => (
           <div key={item.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group relative">
-             {/* Favorite Button */}
-             <button
-               onClick={() => toggleFavorite(item.id)}
-               className={`absolute top-3 right-3 p-1.5 rounded-lg transition-colors ${
-                 favorites.includes(item.id)
-                   ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/30'
-                   : 'text-slate-300 hover:text-amber-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-               }`}
-               title={favorites.includes(item.id) ? 'Remove from favorites' : 'Add to favorites'}
-             >
-               <Star size={18} fill={favorites.includes(item.id) ? 'currentColor' : 'none'} />
-             </button>
+            {/* Favorite Button */}
+            <button
+              onClick={() => toggleFavorite(item.id)}
+              className={`absolute top-3 right-3 p-1.5 rounded-lg transition-colors ${favorites.includes(item.id)
+                ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/30'
+                : 'text-slate-300 hover:text-amber-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              title={favorites.includes(item.id) ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <Star size={18} fill={favorites.includes(item.id) ? 'currentColor' : 'none'} />
+            </button>
 
-             <div className="flex justify-between items-start mb-4 pr-8">
-                <div className="flex gap-3">
-                   {/* Product Image */}
-                   <ImageThumbnail
-                     imageUrl={item.imageUrl}
-                     thumbnailUrl={item.thumbnailUrl}
-                     alt={item.name}
-                     size="lg"
-                     onClick={() => item.imageUrl && setViewingImage({ url: item.imageUrl, title: item.name })}
-                   />
-                   <div>
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                         <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase rounded tracking-wider">{item.category || 'Uncategorized'}</span>
-                         {item.quantity === 0 && (
-                            <span className="px-2 py-0.5 bg-slate-800 dark:bg-slate-600 text-white text-[10px] font-bold uppercase rounded tracking-wider flex items-center gap-1">
-                              Out of Stock
-                            </span>
-                         )}
-                         {item.quantity > 0 && item.quantity <= item.minStock && (
-                            <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase rounded tracking-wider flex items-center gap-1">
-                              <AlertTriangle size={10} /> Low Stock
-                            </span>
-                         )}
-                      </div>
-                      <h3 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{item.name}</h3>
-                      <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-                         <span>📍 {item.location || 'N/A'}</span>
-                      </div>
-                   </div>
+            <div className="flex justify-between items-start mb-4 pr-8">
+              <div className="flex gap-3">
+                {/* Product Image */}
+                <ImageThumbnail
+                  imageUrl={item.imageUrl}
+                  thumbnailUrl={item.thumbnailUrl}
+                  alt={item.name}
+                  size="lg"
+                  onClick={() => item.imageUrl && setViewingImage({ url: item.imageUrl, title: item.name })}
+                />
+                <div>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase rounded tracking-wider">{item.category || 'Uncategorized'}</span>
+                    {item.quantity === 0 && (
+                      <span className="px-2 py-0.5 bg-slate-800 dark:bg-slate-600 text-white text-[10px] font-bold uppercase rounded tracking-wider flex items-center gap-1">
+                        Out of Stock
+                      </span>
+                    )}
+                    {item.quantity > 0 && item.quantity <= item.minStock && (
+                      <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase rounded tracking-wider flex items-center gap-1">
+                        <AlertTriangle size={10} /> Low Stock
+                      </span>
+                    )}
+                  </div>
+                  <h3
+                    onClick={() => setDetailedItem(item)}
+                    className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors cursor-pointer"
+                  >
+                    {item.name}
+                    {item.shortName && <span className="ml-2 text-sm font-normal text-slate-500">({item.shortName})</span>}
+                  </h3>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                    <span>📍 {item.location || 'N/A'}</span>
+                  </div>
                 </div>
-                <div className="text-center bg-slate-50 dark:bg-slate-700 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-600 min-w-16">
-                   <span className={`block text-xl font-bold ${item.quantity === 0 ? 'text-slate-400' : item.quantity <= item.minStock ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}`}>{item.quantity}</span>
-                   <span className="text-[10px] text-slate-400 uppercase font-bold">Units</span>
-                </div>
-             </div>
+              </div>
+              <div className="text-center bg-slate-50 dark:bg-slate-700 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-600 min-w-16">
+                <span className={`block text-xl font-bold ${item.quantity === 0 ? 'text-slate-400' : item.quantity <= item.minStock ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}`}>{item.quantity}</span>
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Units</span>
+              </div>
+            </div>
 
-             <div className="grid grid-cols-2 gap-3 mt-4">
-                <button 
-                  onClick={() => onOpenModal('transaction', item, 'in')}
-                  className="flex items-center justify-center gap-2 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-bold text-sm transition-colors"
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <button
+                onClick={() => onOpenModal('transaction', item, 'in')}
+                className="flex items-center justify-center gap-2 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-bold text-sm transition-colors"
+              >
+                <ArrowDownCircle size={18} /> IN
+              </button>
+              <button
+                onClick={() => onOpenModal('transaction', item, 'out')}
+                disabled={item.quantity === 0}
+                className="flex items-center justify-center gap-2 py-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/40 font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ArrowUpCircle size={18} /> OUT
+              </button>
+            </div>
+
+            {role === 'admin' && (
+              <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                <button
+                  onClick={() => setDeleteConfirm(item)}
+                  className="text-xs font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 uppercase tracking-wider flex items-center gap-1"
                 >
-                  <ArrowDownCircle size={18} /> IN
+                  <Trash2 size={14} /> Delete
                 </button>
-                <button 
-                  onClick={() => onOpenModal('transaction', item, 'out')}
-                  disabled={item.quantity === 0}
-                  className="flex items-center justify-center gap-2 py-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/40 font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                <button
+                  onClick={() => onOpenModal('edit', item)}
+                  className="text-xs font-bold text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 uppercase tracking-wider"
                 >
-                   <ArrowUpCircle size={18} /> OUT
+                  Edit Details
                 </button>
-             </div>
-             
-             {role === 'admin' && (
-               <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
-                  <button 
-                    onClick={() => setDeleteConfirm(item)}
-                    className="text-xs font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 uppercase tracking-wider flex items-center gap-1"
-                  >
-                    <Trash2 size={14} /> Delete
-                  </button>
-                  <button 
-                    onClick={() => onOpenModal('edit', item)}
-                    className="text-xs font-bold text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 uppercase tracking-wider"
-                  >
-                    Edit Details
-                  </button>
-               </div>
-             )}
+              </div>
+            )}
           </div>
         ))}
         {filteredInventory.length === 0 && (
           <div className="col-span-full py-12 text-center text-slate-400 flex flex-col items-center">
-             <Package size={48} className="mb-4 opacity-20" />
-             <p>No items match your filters</p>
-             {activeFiltersCount > 0 && (
-               <button onClick={clearFilters} className="mt-2 text-indigo-600 hover:underline text-sm">
-                 Clear filters
-               </button>
-             )}
+            <Package size={48} className="mb-4 opacity-20" />
+            <p>No items match your filters</p>
+            {activeFiltersCount > 0 && (
+              <button onClick={clearFilters} className="mt-2 text-indigo-600 hover:underline text-sm">
+                Clear filters
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -453,6 +460,27 @@ export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
         variant="danger"
         onConfirm={handleDeleteItem}
         onCancel={() => setDeleteConfirm(null)}
+      />
+
+      {/* Item Detail Drawer */}
+      <ItemDetailDrawer
+        item={detailedItem}
+        isOpen={!!detailedItem}
+        onClose={() => setDetailedItem(null)}
+        onEdit={(item) => {
+          setDetailedItem(null);
+          onOpenModal('edit', item);
+        }}
+        onTransaction={(item) => {
+          // Keep drawer open or close it? Usually close it to focus on transaction
+          // But maybe user wants to go back? For now close it.
+          setDetailedItem(null);
+          onOpenModal('transaction', item, 'in'); // Default to 'in', user can switch
+        }}
+        onDelete={(item) => {
+          setDetailedItem(null);
+          setDeleteConfirm(item);
+        }}
       />
     </div>
   );

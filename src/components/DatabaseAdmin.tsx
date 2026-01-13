@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
-import { 
-  Database, 
-  Trash2, 
+import { useState, useMemo, useEffect } from 'react';
+import {
+  Database,
+  Trash2,
   Calendar,
   Filter,
   Shield,
@@ -17,13 +17,13 @@ import { formatDate, LogItem } from '@/types';
 export const DatabaseAdmin = () => {
   const { logs, isFirebaseConfigured, setLogs } = useStore();
   const { addToast } = useToastStore();
-  
+
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'cleanup' | 'deleteSelected' | null>(null);
   const [selectedLogs, setSelectedLogs] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
-  
+
   // Filters
   const [dateFilter, setDateFilter] = useState<'all' | '7d' | '30d' | '90d' | 'older'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'in' | 'out' | 'create'>('all');
@@ -48,7 +48,7 @@ export const DatabaseAdmin = () => {
         }
 
         const daysDiff = Math.floor((now.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         switch (dateFilter) {
           case '7d': return daysDiff <= 7;
           case '30d': return daysDiff <= 30;
@@ -67,8 +67,55 @@ export const DatabaseAdmin = () => {
     return result;
   }, [logs, dateFilter, typeFilter]);
 
-  // Stats
-  const stats = useMemo(() => {
+  /* New Server-Side Stats Logic */
+  const [serverStats, setServerStats] = useState({
+    total: 0,
+    last7Days: 0,
+    last30Days: 0,
+    older90Days: 0
+  });
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  useEffect(() => {
+    if (isFirebaseConfigured) {
+      fetchServerStats();
+    }
+  }, [isFirebaseConfigured, logs]); // Re-fetch when logs change locally too (e.g. after delete)
+
+  const fetchServerStats = async () => {
+    setLoadingStats(true);
+    try {
+      // Import these dynamically or ensure they are imported at top
+      const { collection, query, where, getCountFromServer, Timestamp } = await import('firebase/firestore');
+      const coll = collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs');
+
+      const now = new Date();
+      const date7d = new Date(); date7d.setDate(now.getDate() - 7);
+      const date30d = new Date(); date30d.setDate(now.getDate() - 30);
+      const date90d = new Date(); date90d.setDate(now.getDate() - 90);
+
+      const [snapTotal, snap7, snap30, snapOlder] = await Promise.all([
+        getCountFromServer(coll),
+        getCountFromServer(query(coll, where('timestamp', '>=', Timestamp.fromDate(date7d)))),
+        getCountFromServer(query(coll, where('timestamp', '>=', Timestamp.fromDate(date30d)))),
+        getCountFromServer(query(coll, where('timestamp', '<', Timestamp.fromDate(date90d))))
+      ]);
+
+      setServerStats({
+        total: snapTotal.data().count,
+        last7Days: snap7.data().count,
+        last30Days: snap30.data().count,
+        older90Days: snapOlder.data().count
+      });
+    } catch (err) {
+      console.error('Failed to fetch stats', err);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  // Helper to use either server stats (if online) or local stats
+  const displayStats = isFirebaseConfigured ? serverStats : useMemo(() => {
     const now = new Date();
     const getAge = (log: LogItem) => {
       let logDate: Date;
@@ -132,42 +179,60 @@ export const DatabaseAdmin = () => {
   };
 
   const performCleanup = async () => {
-    // Delete logs older than 90 days
-    const logsToDelete = logs.filter(log => {
-      let logDate: Date;
-      if (typeof log.timestamp === 'string') {
-        logDate = new Date(log.timestamp);
-      } else if (log.timestamp?.seconds) {
-        logDate = new Date(log.timestamp.seconds * 1000);
-      } else {
-        return false;
-      }
-      const daysDiff = Math.floor((Date.now() - logDate.getTime()) / (1000 * 60 * 60 * 24));
-      return daysDiff > 90;
-    });
-
-    if (logsToDelete.length === 0) {
-      addToast('No old logs to clean up', 'info');
-      return;
-    }
-
     setIsDeleting(true);
     setDeleteProgress(0);
 
     try {
       if (isFirebaseConfigured) {
-        for (let i = 0; i < logsToDelete.length; i++) {
-          const log = logsToDelete[i];
-          await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'logs', log.id));
-          setDeleteProgress(Math.round(((i + 1) / logsToDelete.length) * 100));
+        // Server-side cleanup using query
+        const { collection, query, where, getDocs, Timestamp, writeBatch, limit } = await import('firebase/firestore');
+
+        const date90d = new Date(); date90d.setDate(new Date().getDate() - 90);
+        const coll = collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs');
+        // Limit to 500 for batch size limits
+        const q = query(coll, where('timestamp', '<', Timestamp.fromDate(date90d)), limit(500));
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+          addToast('No old logs found to clean up', 'info');
+          return;
         }
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(d => batch.delete(d.ref));
+
+        await batch.commit();
+        addToast(`Cleaned up ${snapshot.size} logs`, 'success');
+        fetchServerStats(); // Refresh stats
+
       } else {
-        // Local mode - update store
+        // Local mode remains same
+        const logsToDelete = logs.filter(log => {
+          // ... (existing local logic if needed, but simplified here for brevity or keep existing)
+          // For now assuming existing local logic was fine, but let's just re-implement simple local filter
+          let logDate: Date;
+          if (typeof log.timestamp === 'string') {
+            logDate = new Date(log.timestamp);
+          } else if (log.timestamp?.seconds) {
+            logDate = new Date(log.timestamp.seconds * 1000);
+          } else {
+            return false;
+          }
+          const daysDiff = Math.floor((Date.now() - logDate.getTime()) / (1000 * 60 * 60 * 24));
+          return daysDiff > 90;
+        });
+
+        if (logsToDelete.length === 0) {
+          addToast('No old logs to clean up', 'info');
+          return;
+        }
+
         const remainingLogs = logs.filter(l => !logsToDelete.find(d => d.id === l.id));
         setLogs(remainingLogs);
+        addToast(`Cleaned up ${logsToDelete.length} old logs`, 'success');
       }
 
-      addToast(`Cleaned up ${logsToDelete.length} old logs`, 'success');
     } catch (err) {
       console.error('Cleanup error:', err);
       addToast('Cleanup failed', 'error');
@@ -179,7 +244,7 @@ export const DatabaseAdmin = () => {
 
   const performDeleteSelected = async () => {
     const logsToDelete = logs.filter(l => selectedLogs.has(l.id));
-    
+
     setIsDeleting(true);
     setDeleteProgress(0);
 
@@ -190,6 +255,7 @@ export const DatabaseAdmin = () => {
           await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'logs', log.id));
           setDeleteProgress(Math.round(((i + 1) / logsToDelete.length) * 100));
         }
+        fetchServerStats(); // Refresh stats
       } else {
         // Local mode - update store
         const remainingLogs = logs.filter(l => !selectedLogs.has(l.id));
@@ -225,20 +291,28 @@ export const DatabaseAdmin = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-        <div className="text-center">
-          <p className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</p>
+        <div className="text-center relative">
+          <p className="text-2xl font-bold text-slate-800 dark:text-white">
+            {loadingStats ? '...' : displayStats.total}
+          </p>
           <p className="text-xs text-slate-500">Total Logs</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-emerald-600">{stats.last7Days}</p>
+          <p className="text-2xl font-bold text-emerald-600">
+            {loadingStats ? '...' : displayStats.last7Days}
+          </p>
           <p className="text-xs text-slate-500">Last 7 Days</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-blue-600">{stats.last30Days}</p>
+          <p className="text-2xl font-bold text-blue-600">
+            {loadingStats ? '...' : displayStats.last30Days}
+          </p>
           <p className="text-xs text-slate-500">Last 30 Days</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-amber-600">{stats.older90Days}</p>
+          <p className="text-2xl font-bold text-amber-600">
+            {loadingStats ? '...' : displayStats.older90Days}
+          </p>
           <p className="text-xs text-slate-500">Older than 90 Days</p>
         </div>
       </div>
@@ -300,11 +374,10 @@ export const DatabaseAdmin = () => {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
             {filteredLogs.slice(0, 100).map(log => (
-              <tr 
-                key={log.id} 
-                className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 ${
-                  selectedLogs.has(log.id) ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''
-                }`}
+              <tr
+                key={log.id}
+                className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 ${selectedLogs.has(log.id) ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''
+                  }`}
               >
                 <td className="p-3">
                   <input
@@ -315,11 +388,10 @@ export const DatabaseAdmin = () => {
                   />
                 </td>
                 <td className="p-3">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    log.type === 'in' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${log.type === 'in' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
                     log.type === 'out' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
-                    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                  }`}>
+                      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                    }`}>
                     {log.type.toUpperCase()}
                   </span>
                 </td>
@@ -344,7 +416,7 @@ export const DatabaseAdmin = () => {
       {isDeleting && (
         <div className="p-4 border-t border-slate-200 dark:border-slate-700">
           <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-rose-600 transition-all duration-300"
               style={{ width: `${deleteProgress}%` }}
             />
@@ -367,11 +439,11 @@ export const DatabaseAdmin = () => {
         </button>
         <button
           onClick={requestCleanup}
-          disabled={stats.older90Days === 0 || isDeleting}
+          disabled={displayStats.older90Days === 0 || isDeleting}
           className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Clock size={16} />
-          Cleanup Old Logs ({stats.older90Days})
+          Cleanup Old Logs ({displayStats.older90Days})
         </button>
         <div className="flex-1" />
         <div className="flex items-center gap-2 text-xs text-slate-500">
