@@ -31,19 +31,33 @@ import { ItemDetailDrawer } from './ItemDetailDrawer';
 interface InventoryProps {
   onNavigate: (view: 'rapid-receive') => void;
   onOpenModal: (type: 'add' | 'transaction' | 'edit', item?: InventoryItem, transactionType?: 'in' | 'out') => void;
+  activeItemId?: string | null;
+  onClearActiveItem?: () => void;
 }
 
 type SortField = 'name' | 'quantity' | 'category' | 'location';
 type SortOrder = 'asc' | 'desc';
 type StockFilter = 'all' | 'low' | 'ok' | 'out' | 'favorites';
 
-export const Inventory = ({ onNavigate, onOpenModal }: InventoryProps) => {
+export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActiveItem }: InventoryProps) => {
   const { inventory, role, favorites, toggleFavorite, deleteInventoryItem, isFirebaseConfigured } = useStore();
   const { addToast } = useToastStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<InventoryItem | null>(null);
   const [detailedItem, setDetailedItem] = useState<InventoryItem | null>(null);
+
+  // Handle external item selection (e.g. from Command Palette)
+  useMemo(() => {
+    if (activeItemId && inventory.length > 0) {
+      const item = inventory.find(i => i.id === activeItemId);
+      if (item) {
+        setDetailedItem(item);
+        // Clear the prop so it doesn't re-trigger unwantedly or block closing
+        if (onClearActiveItem) onClearActiveItem();
+      }
+    }
+  }, [activeItemId, inventory, onClearActiveItem]);
 
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 

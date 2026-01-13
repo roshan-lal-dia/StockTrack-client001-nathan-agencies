@@ -40,6 +40,7 @@ function App() {
   const [activeModal, setActiveModal] = useState<'none' | 'add' | 'transaction' | 'edit'>('none');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [initialTransactionType, setInitialTransactionType] = useState<'in' | 'out'>('in');
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -422,6 +423,8 @@ function App() {
               setSelectedItem(item || null);
               if (txType) setInitialTransactionType(txType);
             }}
+            activeItemId={activeItemId}
+            onClearActiveItem={() => setActiveItemId(null)}
           />
         )}
         {view === 'rapid-receive' && <RapidReceive />}
@@ -445,6 +448,11 @@ function App() {
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
         onNavigate={handleCommandSelect}
+        onSelectProduct={(itemId) => {
+          setView('inventory');
+          setActiveItemId(itemId);
+          setCommandPaletteOpen(false);
+        }}
       />
 
       {/* Conflict Resolution */}
