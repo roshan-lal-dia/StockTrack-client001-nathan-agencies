@@ -1,6 +1,7 @@
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
+import { softDeleteEntity } from '../lib/softDelete';
 import { db } from '@/lib/firebase';
 import { Role, formatDate } from '@/types';
 import { Users, Shield, UserCheck, UserX, Trash2 } from 'lucide-react';
@@ -8,7 +9,7 @@ import { useState } from 'react';
 import { ConfirmDialog } from './ConfirmDialog';
 
 export const Team = () => {
-  const { usersList, user, role, isFirebaseConfigured } = useStore();
+  const { usersList, user, role, isFirebaseConfigured, softDeleteUser } = useStore();
   const { addToast } = useToastStore();
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -26,11 +27,11 @@ export const Team = () => {
   };
 
   const handleDeleteUser = async () => {
-    if (!deleteTarget || !isFirebaseConfigured) return;
+    if (!deleteTarget || !isFirebaseConfigured || !user) return;
     try {
-      const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', deleteTarget);
-      await deleteDoc(ref);
-      addToast('User removed from system', 'success');
+      // Soft delete the user
+      await softDeleteEntity('users', deleteTarget, user.uid);
+      addToast('User moved to trash', 'success');
       setDeleteTarget(null);
     } catch (err) {
       console.error(err);
@@ -49,8 +50,8 @@ export const Team = () => {
     );
   };
 
-  const adminCount = usersList.filter(u => u.role === 'admin').length;
-  const staffCount = usersList.filter(u => u.role === 'staff').length;
+  const adminCount = usersList.filter(u => u.role === 'admin' && !u.isDeleted).length;
+  const staffCount = usersList.filter(u => u.role === 'staff' && !u.isDeleted).length;
 
   return (
     <div className="max-w-4xl mx-auto animate-fade-in space-y-6">
@@ -67,7 +68,7 @@ export const Team = () => {
                <Users size={20} className="text-indigo-600 dark:text-indigo-400" />
              </div>
              <div>
-               <p className="text-2xl font-bold text-slate-800 dark:text-white">{usersList.length}</p>
+               <p className="text-2xl font-bold text-slate-800 dark:text-white">{usersList.filter(u => !u.isDeleted).length}</p>
                <p className="text-xs text-slate-500 dark:text-slate-400">Total Users</p>
              </div>
            </div>
@@ -112,9 +113,8 @@ export const Team = () => {
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
-               {usersList.map(u => (
-                  <div key={u.uid} className="p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                     <div className="flex items-center gap-4">
+               {usersList.filter(u => !u.isDeleted).map(u => (
+                  <div key={u.uid} className="p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">\n                     <div className="flex items-center gap-4">
                         <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg">
                            {u.name.charAt(0).toUpperCase()}
                         </div>

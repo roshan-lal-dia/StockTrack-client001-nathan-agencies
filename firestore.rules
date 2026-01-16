@@ -24,31 +24,36 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.auth.uid == userId;
       allow update: if isAuthenticated() && (
         request.auth.uid == userId || 
-        // Admins can update other users (for role changes)
+        // Admins can update other users (for role changes and soft delete)
         get(/databases/$(database)/documents/artifacts/$(appId)/public/data/users/$(request.auth.uid)).data.role == 'admin'
       );
-      allow delete: if false; // Users cannot be deleted
+      // Admins can soft delete users via update operation (not hard delete)
+      allow delete: if false;
     }
     
-    // Inventory collection - all authenticated users can read/create/update, only admins can delete
+    // Inventory collection - all authenticated users can read/create/update, only admins can soft delete
     match /artifacts/{appId}/public/data/inventory/{itemId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
+      // Hard delete only allowed for permanent purge by admin (not normal delete operation)
       allow delete: if isAuthenticated() && 
         get(/databases/$(database)/documents/artifacts/$(appId)/public/data/users/$(request.auth.uid)).data.role == 'admin';
     }
     
-    // Logs collection - all authenticated can read/create, only admins can delete (for cleanup)
+    // Logs collection - all authenticated can read/create, admins can update for soft delete, admins can hard delete for cleanup
     match /artifacts/{appId}/public/data/logs/{logId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if false; // Logs are immutable - no updates allowed
+      // Allow updates for soft delete operations by admins
+      allow update: if isAuthenticated() && 
+        get(/databases/$(database)/documents/artifacts/$(appId)/public/data/users/$(request.auth.uid)).data.role == 'admin';
+      // Hard delete only for permanent purge by admin
       allow delete: if isAuthenticated() && 
         get(/databases/$(database)/documents/artifacts/$(appId)/public/data/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Events collection - all authenticated can read/create/update/delete
+    // Events collection - all authenticated can read/create/update (for soft delete)/delete (for hard delete)
     match /artifacts/{appId}/public/data/events/{eventId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();

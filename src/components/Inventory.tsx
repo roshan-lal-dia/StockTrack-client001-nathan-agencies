@@ -22,7 +22,7 @@ import { useToastStore } from '@/store/useToastStore';
 import { InventoryItem } from '@/types';
 import { BarcodeScanner } from './BarcodeScanner';
 import { ConfirmDialog } from './ConfirmDialog';
-import { deleteDoc, doc } from 'firebase/firestore';
+import { softDeleteEntity } from '../lib/softDelete';
 import { db } from '@/lib/firebase';
 import { PrintLabels } from './PrintLabels';
 import { ImageViewer, ImageThumbnail } from './ImageViewer';
@@ -40,7 +40,7 @@ type SortOrder = 'asc' | 'desc';
 type StockFilter = 'all' | 'low' | 'ok' | 'out' | 'favorites';
 
 export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActiveItem }: InventoryProps) => {
-  const { inventory, role, favorites, toggleFavorite, deleteInventoryItem, isFirebaseConfigured } = useStore();
+  const { inventory, role, favorites, toggleFavorite, softDeleteInventoryItem, deleteInventoryItem, isFirebaseConfigured, user } = useStore();
   const { addToast } = useToastStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -62,19 +62,19 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
   const handleDeleteItem = async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || !user) return;
 
     const itemToDelete = deleteConfirm;
     setDeleteConfirm(null);
-    addToast(`Deleted "${itemToDelete.name}"`, 'success');
+    addToast(`Moved "${itemToDelete.name}" to trash`, 'success');
 
     try {
       if (isFirebaseConfigured) {
-        // Delete from Firebase
-        await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', itemToDelete.id));
+        // Soft delete in Firebase
+        await softDeleteEntity('inventory', itemToDelete.id, user.uid);
       } else {
-        // Delete from local store
-        deleteInventoryItem(itemToDelete.id);
+        // Soft delete in local store
+        softDeleteInventoryItem(itemToDelete.id, 'local-user');
       }
     } catch (err) {
       console.error('Delete error:', err);
@@ -91,14 +91,14 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
   const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
 
   // Get unique categories and locations (sorted alphabetically)
-  const categories = useMemo(() => {
-    const cats = new Set(inventory.map(i => i.category).filter(Boolean));
-    return ['all', ...Array.from(cats).sort((a, b) => a.localeCompare(b))];
+  const uniqueCategories = useMemo(() => {
+    const cats = new Set(inventory.filter(i => !i.isDeleted).map(i => i.category).filter(Boolean));
+    return Array.from(cats).sort();
   }, [inventory]);
 
-  const locations = useMemo(() => {
-    const locs = new Set(inventory.map(i => i.location).filter(Boolean));
-    return ['all', ...Array.from(locs).sort((a, b) => a.localeCompare(b))];
+  const uniqueLocations = useMemo(() => {
+    const locs = new Set(inventory.filter(i => !i.isDeleted).map(i => i.location).filter(Boolean));
+    return Array.from(locs).sort();
   }, [inventory]);
 
   const handleBarcodeScan = (code: string, item?: InventoryItem) => {
@@ -113,7 +113,8 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
   };
 
   const filteredInventory = useMemo(() => {
-    let result = [...inventory];
+    // Filter out soft-deleted items first
+    let result = inventory.filter(item => !item.isDeleted);
 
     // Text search
     if (searchQuery) {
@@ -176,7 +177,7 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
         <div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Inventory</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {filteredInventory.length} of {inventory.length} items
+            {filteredInventory.length} of {inventory.filter(i => !i.isDeleted).length} items
           </p>
         </div>
         <div className="flex gap-2 w-full md:w-auto flex-wrap">

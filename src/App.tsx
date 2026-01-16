@@ -11,6 +11,7 @@ import { RapidReceive } from '@/components/RapidReceive';
 import { Logs } from '@/components/Logs';
 import { Team } from '@/components/Team';
 import { Backup } from '@/components/Backup';
+import { RecoveryPanel } from '@/components/RecoveryPanel';
 import { Settings } from '@/components/Settings';
 import { Modals } from '@/components/Modals';
 import { ToastContainer } from '@/components/Toast';
@@ -27,7 +28,7 @@ import {
   clearSyncedChanges
 } from '@/lib/conflictResolution';
 
-type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'settings' | 'events';
+type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'recovery' | 'settings' | 'events';
 
 function App() {
   const {
@@ -134,6 +135,7 @@ function App() {
       case 'rapid-receive':
       case 'team':
       case 'backup':
+      case 'recovery':
       case 'settings':
         setView(command as ViewType);
         break;
@@ -432,6 +434,7 @@ function App() {
         {view === 'events' && <InventoryEvents />}
         {view === 'team' && role === 'admin' && <Team />}
         {view === 'backup' && role === 'admin' && <Backup />}
+        {view === 'recovery' && role === 'admin' && <RecoveryPanel />}
         {view === 'settings' && <Settings />}
 
         <Modals

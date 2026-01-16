@@ -10,16 +10,16 @@ import {
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { PinVerification } from './PinVerification';
-import { deleteDoc, doc } from 'firebase/firestore';
+import { softDeleteEntity, softDeleteBatch, hardDeleteBatch } from '../lib/softDelete';
 import { db } from '@/lib/firebase';
 import { formatDate, LogItem } from '@/types';
 
 export const DatabaseAdmin = () => {
-  const { logs, isFirebaseConfigured, setLogs } = useStore();
+  const { logs, isFirebaseConfigured, setLogs, user, softDeleteLog } = useStore();
   const { addToast } = useToastStore();
 
   const [showPinModal, setShowPinModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'cleanup' | 'deleteSelected' | null>(null);
+  const [pendingAction, setPendingAction] = useState<'cleanup' | 'deleteSelected' | 'purgeSelected' | null>(null);
   const [selectedLogs, setSelectedLogs] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
@@ -32,7 +32,8 @@ export const DatabaseAdmin = () => {
 
   // Filter logs
   const filteredLogs = useMemo(() => {
-    let result = [...logs];
+    // Filter out soft-deleted logs
+    let result = logs.filter(log => !log.isDeleted);
     const now = new Date();
 
     // Date filter
@@ -165,7 +166,16 @@ export const DatabaseAdmin = () => {
       addToast('No logs selected', 'error');
       return;
     }
-    setPendingAction('deleteSelected');
+    // Soft delete doesn't require PIN - execute directly
+    performDeleteSelected();
+  };
+
+  const requestPurgeSelected = () => {
+    if (selectedLogs.size === 0) {
+      addToast('No logs selected', 'error');
+      return;
+    }
+    setPendingAction('purgeSelected');
     setShowPinModal(true);
   };
 
@@ -174,6 +184,8 @@ export const DatabaseAdmin = () => {
       await performCleanup();
     } else if (pendingAction === 'deleteSelected') {
       await performDeleteSelected();
+    } else if (pendingAction === 'purgeSelected') {
+      await performPurgeSelected();
     }
     setPendingAction(null);
   };
@@ -184,8 +196,8 @@ export const DatabaseAdmin = () => {
 
     try {
       if (isFirebaseConfigured) {
-        // Server-side cleanup using query
-        const { collection, query, where, getDocs, Timestamp, writeBatch, limit } = await import('firebase/firestore');
+        // Server-side cleanup using query - permanently delete old logs
+        const { collection, query, where, getDocs, Timestamp, limit } = await import('firebase/firestore');
 
         const date90d = new Date(); date90d.setDate(new Date().getDate() - 90);
         const coll = collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs');
@@ -199,18 +211,16 @@ export const DatabaseAdmin = () => {
           return;
         }
 
-        const batch = writeBatch(db);
-        snapshot.docs.forEach(d => batch.delete(d.ref));
-
-        await batch.commit();
-        addToast(`Cleaned up ${snapshot.size} logs`, 'success');
+        // Use hard delete batch for permanent cleanup
+        const logIds = snapshot.docs.map(d => d.id);
+        await hardDeleteBatch('logs', logIds);
+        
+        addToast(`Permanently deleted ${snapshot.size} old logs`, 'success');
         fetchServerStats(); // Refresh stats
 
       } else {
-        // Local mode remains same
+        // Local mode - hard delete old logs
         const logsToDelete = logs.filter(log => {
-          // ... (existing local logic if needed, but simplified here for brevity or keep existing)
-          // For now assuming existing local logic was fine, but let's just re-implement simple local filter
           let logDate: Date;
           if (typeof log.timestamp === 'string') {
             logDate = new Date(log.timestamp);
@@ -249,24 +259,51 @@ export const DatabaseAdmin = () => {
     setDeleteProgress(0);
 
     try {
-      if (isFirebaseConfigured) {
-        for (let i = 0; i < logsToDelete.length; i++) {
-          const log = logsToDelete[i];
-          await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'logs', log.id));
-          setDeleteProgress(Math.round(((i + 1) / logsToDelete.length) * 100));
-        }
+      if (isFirebaseConfigured && user) {
+        // Soft delete logs in Firebase
+        await softDeleteBatch('logs', Array.from(selectedLogs), user.uid);
         fetchServerStats(); // Refresh stats
       } else {
-        // Local mode - update store
-        const remainingLogs = logs.filter(l => !selectedLogs.has(l.id));
-        setLogs(remainingLogs);
+        // Local mode - soft delete in store
+        logsToDelete.forEach(log => {
+          softDeleteLog(log.id, 'local-user');
+        });
       }
 
-      addToast(`Deleted ${logsToDelete.length} logs`, 'success');
+      addToast(`Moved ${logsToDelete.length} logs to trash`, 'success');
       setSelectedLogs(new Set());
     } catch (err) {
       console.error('Delete error:', err);
       addToast('Delete failed', 'error');
+    } finally {
+      setIsDeleting(false);
+      setDeleteProgress(0);
+    }
+  };
+
+  // New function for permanent purge (requires PIN)
+  const performPurgeSelected = async () => {
+    const logsToDelete = logs.filter(l => selectedLogs.has(l.id));
+
+    setIsDeleting(true);
+    setDeleteProgress(0);
+
+    try {
+      if (isFirebaseConfigured) {
+        // Permanently delete logs in Firebase
+        await hardDeleteBatch('logs', Array.from(selectedLogs));
+        fetchServerStats(); // Refresh stats
+      } else {
+        // Local mode - hard delete in store
+        const remainingLogs = logs.filter(l => !selectedLogs.has(l.id));
+        setLogs(remainingLogs);
+      }
+
+      addToast(`Permanently deleted ${logsToDelete.length} logs`, 'success');
+      setSelectedLogs(new Set());
+    } catch (err) {
+      console.error('Purge error:', err);
+      addToast('Purge failed', 'error');
     } finally {
       setIsDeleting(false);
       setDeleteProgress(0);
@@ -432,10 +469,18 @@ export const DatabaseAdmin = () => {
         <button
           onClick={requestDeleteSelected}
           disabled={selectedLogs.size === 0 || isDeleting}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Trash2 size={16} />
+          Move to Trash ({selectedLogs.size})
+        </button>
+        <button
+          onClick={requestPurgeSelected}
+          disabled={selectedLogs.size === 0 || isDeleting}
           className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Trash2 size={16} />
-          Delete Selected ({selectedLogs.size})
+          Purge Selected ({selectedLogs.size})
         </button>
         <button
           onClick={requestCleanup}
@@ -448,7 +493,7 @@ export const DatabaseAdmin = () => {
         <div className="flex-1" />
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Shield size={14} />
-          PIN required for destructive actions
+          PIN required for purge & cleanup
         </div>
       </div>
 

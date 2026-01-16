@@ -6,6 +6,7 @@ import { InventoryEvent, formatDate } from '@/types';
 import { ImageUpload } from './ImageUpload';
 import { UploadedImage } from '@/lib/imageUtils';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { softDeleteEntity } from '../lib/softDelete';
 import { db } from '@/lib/firebase';
 import { ImageViewer, ImageThumbnail } from './ImageViewer';
 
@@ -17,7 +18,7 @@ const EVENT_TYPES = {
 };
 
 export const InventoryEvents = () => {
-    const { inventoryEvents, userProfile, addInventoryEvent, updateInventoryEvent, deleteInventoryEvent, isFirebaseConfigured } = useStore();
+    const { inventoryEvents, userProfile, user, addInventoryEvent, updateInventoryEvent, softDeleteInventoryEvent, isFirebaseConfigured } = useStore();
     const { addToast } = useToastStore();
     const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
@@ -65,10 +66,19 @@ export const InventoryEvents = () => {
 
     const handleDeleteEvent = async (id: string) => {
         if (confirm('Are you sure you want to delete this event?')) {
-            deleteInventoryEvent(id);
-            addToast('Event deleted', 'success');
-            // Note: Firebase delete not implemented for simplicity in this iteration, 
-            // as it would require deleting from the 'events' collection by ID.
+            try {
+                if (isFirebaseConfigured && user) {
+                    // Soft delete in Firebase
+                    await softDeleteEntity('events', id, user.uid);
+                } else {
+                    // Soft delete in local store
+                    softDeleteInventoryEvent(id, 'local-user');
+                }
+                addToast('Event moved to trash', 'success');
+            } catch (err) {
+                console.error('Delete error:', err);
+                addToast('Failed to delete event', 'error');
+            }
         }
     };
 
@@ -149,7 +159,7 @@ export const InventoryEvents = () => {
                         </p>
                     </div>
                 ) : (
-                    inventoryEvents.map(event => (
+                    inventoryEvents.filter(event => !event.isDeleted).map(event => (
                         <div key={event.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-5 animate-fade-in hover:shadow-md transition-shadow">
                             {/* Image Section */}
                             <div className="w-full md:w-48 shrink-0">
