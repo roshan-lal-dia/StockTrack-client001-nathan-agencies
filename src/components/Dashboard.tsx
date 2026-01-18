@@ -15,8 +15,12 @@ interface DashboardProps {
 export const Dashboard = ({ onNavigate }: DashboardProps) => {
   const { inventory, logs, userProfile, role } = useStore();
 
-  const lowStockCount = inventory.filter(i => i.quantity <= i.minStock).length;
-  const totalItems = inventory.reduce((a, c) => a + c.quantity, 0);
+  // Filter out soft-deleted items
+  const activeInventory = inventory.filter(i => !i.isDeleted);
+  const activeLogs = logs.filter(l => !l.isDeleted);
+
+  const lowStockCount = activeInventory.filter(i => i.quantity <= i.minStock).length;
+  const totalItems = activeInventory.reduce((a, c) => a + c.quantity, 0);
 
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
@@ -35,7 +39,7 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
           <div className="p-4 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl"><Package size={24} /></div>
           <div>
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Unique Products</p>
-            <h3 className="text-2xl font-bold text-slate-800 dark:text-white">{inventory.length}</h3>
+            <h3 className="text-2xl font-bold text-slate-800 dark:text-white">{activeInventory.length}</h3>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4">
@@ -56,7 +60,7 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
           <div className="p-4 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl"><Truck size={24} /></div>
           <div>
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Movement (7d)</p>
-            <h3 className="text-2xl font-bold text-slate-800 dark:text-white">{logs.length}</h3>
+            <h3 className="text-2xl font-bold text-slate-800 dark:text-white">{activeLogs.length}</h3>
           </div>
         </div>
       </div>
@@ -71,7 +75,7 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
           <button onClick={() => onNavigate('history')} className="text-indigo-600 dark:text-indigo-400 text-sm font-medium hover:underline">View All</button>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-700">
-          {logs.slice(0, 5).map(log => (
+          {activeLogs.slice(0, 5).map(log => (
              <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                 <div className="flex items-center gap-3">
                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold

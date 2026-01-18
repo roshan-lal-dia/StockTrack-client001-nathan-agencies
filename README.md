@@ -9,6 +9,7 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **Command Palette**: Quick navigation with `Alt + K`
 - **Toast Notifications**: Non-blocking feedback for all actions
 - **Advanced Filtering**: Filter by stock level, category, location with sorting
+- **Fuzzy Search**: Multi-term search that matches partial and reordered terms (e.g., "LG 100" finds "LG waterpurifier - 100")
 - **Real-time Sync**: Firebase Firestore with offline persistence
 - **Data Portability**: Export to JSON/CSV, no vendor lock-in
 - **Role-based Access**: Admin and Staff roles with different permissions
@@ -110,6 +111,14 @@ When multiple users edit the same product (online or offline):
 - **Full-Text Search**: Find categories as you type with fuzzy matching
 - **Staff/Admin Flexibility**: Both roles can add new categories freely
 
+### Fuzzy Search
+- **Multi-Term Matching**: Search with multiple terms in any order (e.g., "LG 100" matches "LG waterpurifier - 100")
+- **Partial Matching**: Find items with partial text (e.g., "water" matches "waterpurifier")
+- **All Fields**: Searches across name, short name/SKU, category, location, and notes
+- **Case-Insensitive**: Works regardless of capitalization
+- **Implemented Everywhere**: Works in Inventory, Command Palette, Barcode Scanner, Rapid Receive, Logs, and Events
+- **No External Dependencies**: Pure JavaScript implementation for fast, offline-capable search
+
 ### Data Export (`src/lib/export.ts`)
 Available in the **Backup & Export** admin panel:
 1. **Full Backup (JSON)**: Complete data dump including inventory, logs, users, and events
@@ -164,6 +173,7 @@ src/
 │   ├── imageUtils.ts       # Cloudinary upload utilities
 │   ├── conflictResolution.ts # Delta tracking and conflict detection
 │   ├── softDelete.ts       # Soft delete, restore, and hard delete utilities
+│   ├── searchUtils.ts      # Fuzzy search utilities for multi-term matching
 │   └── categoryUtils.ts    # Category normalization utilities
 ├── types/
 │   └── index.ts            # TypeScript interfaces

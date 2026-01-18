@@ -4,6 +4,7 @@ import { formatDate } from '@/types';
 import { ImageViewer, ImageThumbnail } from './ImageViewer';
 import { Search } from 'lucide-react';
 import { fetchLogsByDateRange } from '@/lib/firestoreQueries';
+import { fuzzySearchLogs } from '../lib/searchUtils';
 
 
 
@@ -22,11 +23,7 @@ export const Logs = () => {
   // Use searchResults if available, otherwise use live logs
   const displayedLogs = searchResults || logs;
 
-  const filteredLogs = displayedLogs.filter(log =>
-    log.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    log.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    log.type.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredLogs = fuzzySearchLogs(displayedLogs.filter(log => !log.isDeleted), searchQuery);
 
   const handleDateSearch = async () => {
     if (!startDate || !endDate) return;

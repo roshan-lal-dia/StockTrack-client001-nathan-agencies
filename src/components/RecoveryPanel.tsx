@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, RotateCcw, AlertTriangle, Loader2 } from 'lucide-react';
+import { Trash2, RotateCcw, AlertTriangle, Loader2, Search } from 'lucide-react';
+import { fuzzyMatch } from '../lib/searchUtils';
 import { useStore } from '../store/useStore';
 import { useToastStore } from '../store/useToastStore';
 import {
@@ -28,6 +29,20 @@ export const RecoveryPanel: React.FC = () => {
   const [deletedItems, setDeletedItems] = useState<(InventoryItem | LogItem | UserProfile | InventoryEvent)[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter items with fuzzy search
+  const filteredItems = deletedItems.filter(item => {
+    if (!searchQuery.trim()) return true;
+    
+    let searchableText = '';
+    if ('name' in item) searchableText = `${item.name} ${(item as any).category || ''}`;
+    else if ('itemName' in item) searchableText = `${item.itemName} ${item.user}`;
+    else if ('description' in item) searchableText = `${item.type} ${item.description}`;
+    else if ('email' in item) searchableText = `${item.name} ${item.email}`;
+    
+    return fuzzyMatch(searchableText, searchQuery);
+  });
   
   // Confirmation states
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
@@ -165,10 +180,10 @@ export const RecoveryPanel: React.FC = () => {
   };
 
   const selectAll = () => {
-    if (selectedIds.size === deletedItems.length) {
+    if (selectedIds.size === filteredItems.length && filteredItems.length > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(deletedItems.map(item => {
+      setSelectedIds(new Set(filteredItems.map(item => {
         if ('uid' in item) return item.uid;
         return item.id;
       })));
@@ -251,8 +266,20 @@ export const RecoveryPanel: React.FC = () => {
       <div>
         <h2 className="text-2xl font-bold mb-2">Recovery Panel</h2>
         <p className="text-gray-600 dark:text-gray-400">
-          Restore or permanently delete soft-deleted items
+          Restore or permanently delete soft-deleted items • {filteredItems.length} of {deletedItems.length} items
         </p>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+        <input
+          type="text"
+          placeholder="Search deleted items..."
+          className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+        />
       </div>
 
       {/* Tabs */}
@@ -273,13 +300,13 @@ export const RecoveryPanel: React.FC = () => {
       </div>
 
       {/* Bulk actions */}
-      {deletedItems.length > 0 && (
+      {filteredItems.length > 0 && (
         <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
           <div className="flex items-center space-x-4">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={selectedIds.size === deletedItems.length}
+                checked={selectedIds.size === filteredItems.length && filteredItems.length > 0}
                 onChange={selectAll}
                 className="w-4 h-4 rounded border-gray-300"
               />
@@ -314,13 +341,13 @@ export const RecoveryPanel: React.FC = () => {
         <div className="flex justify-center items-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
         </div>
-      ) : deletedItems.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <p className="text-gray-500">No deleted {activeTab} found</p>
+          <p className="text-gray-500">{searchQuery ? 'No matching items found' : `No deleted ${activeTab} found`}</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {deletedItems.map((item) => {
+          {filteredItems.map((item) => {
             const itemId = getItemId(item);
             return (
               <div

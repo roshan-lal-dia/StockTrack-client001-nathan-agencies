@@ -20,6 +20,7 @@ import {
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { InventoryItem } from '@/types';
+import { fuzzySearchInventory } from '../lib/searchUtils';
 import { BarcodeScanner } from './BarcodeScanner';
 import { ConfirmDialog } from './ConfirmDialog';
 import { softDeleteEntity } from '../lib/softDelete';
@@ -116,15 +117,9 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
     // Filter out soft-deleted items first
     let result = inventory.filter(item => !item.isDeleted);
 
-    // Text search
+    // Text search with fuzzy matching
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(i =>
-        i.name.toLowerCase().includes(q) ||
-        (i.shortName && i.shortName.toLowerCase().includes(q)) ||
-        i.category.toLowerCase().includes(q) ||
-        i.location.toLowerCase().includes(q)
-      );
+      result = fuzzySearchInventory(result, searchQuery);
     }
 
     // Stock filter
@@ -159,7 +154,7 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
     });
 
     return result;
-  }, [inventory, searchQuery, stockFilter, categoryFilter, locationFilter, sortField, sortOrder]);
+  }, [inventory, searchQuery, stockFilter, categoryFilter, locationFilter, sortField, sortOrder, favorites]);
 
   const activeFiltersCount = [stockFilter !== 'all', categoryFilter !== 'all', locationFilter !== 'all'].filter(Boolean).length;
 

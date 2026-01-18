@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, X, Package, Zap, History, Users, Settings, LayoutDashboard, Download } from 'lucide-react';
 import { useStore } from '@/store/useStore';
+import { fuzzySearchCommands } from '../lib/searchUtils';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -63,11 +64,7 @@ export const CommandPalette = ({ isOpen, onClose, onNavigate, onSelectProduct }:
   const filteredCommands = useMemo(() => {
     if (!query) return commands.filter(c => c.category === 'navigation');
 
-    const q = query.toLowerCase();
-    return commands.filter(cmd =>
-      cmd.label.toLowerCase().includes(q) ||
-      cmd.keywords.some(kw => kw.toLowerCase().includes(q))
-    );
+    return fuzzySearchCommands(commands, query);
   }, [commands, query]);
 
   useEffect(() => {

@@ -6,6 +6,7 @@ import { collection, addDoc, updateDoc, doc, serverTimestamp, increment } from '
 import { db } from '@/lib/firebase';
 import { InventoryItem } from '@/types';
 import { normalizeCategory } from '@/lib/categoryUtils';
+import { fuzzySearchInventory } from '../lib/searchUtils';
 
 // Generate a unique ID for offline mode
 const generateId = () => `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -21,12 +22,13 @@ export const RapidReceive = () => {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter suggestions based on current input
+  // Filter suggestions based on current input with fuzzy search
   const suggestions = useMemo(() => {
     if (localName.length < 2) return [];
-    return inventory
-      .filter(i => i.name.toLowerCase().includes(localName.toLowerCase()))
-      .slice(0, 5);
+    return fuzzySearchInventory(
+      inventory.filter(i => !i.isDeleted),
+      localName
+    ).slice(0, 5);
   }, [inventory, localName]);
 
   // Handle keyboard navigation in autocomplete

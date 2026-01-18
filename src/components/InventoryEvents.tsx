@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Truck, Plus, Calendar, User, X } from 'lucide-react';
+import { Truck, Plus, Calendar, User, X, Search } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { InventoryEvent, formatDate } from '@/types';
@@ -9,6 +9,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { softDeleteEntity } from '../lib/softDelete';
 import { db } from '@/lib/firebase';
 import { ImageViewer, ImageThumbnail } from './ImageViewer';
+import { fuzzySearchEvents } from '../lib/searchUtils';
 
 const EVENT_TYPES = {
     shipment: 'Truck Load / Shipment',
@@ -25,6 +26,7 @@ export const InventoryEvents = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Form State
     const [formData, setFormData] = useState({
@@ -149,17 +151,31 @@ export const InventoryEvents = () => {
                 </button>
             </div>
 
+            {/* Search Bar */}
+            <div className="mb-4">
+                <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <input
+                        type="text"
+                        placeholder="Search events by type, description, or user..."
+                        className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                    />
+                </div>
+            </div>
+
             <div className="space-y-4">
-                {inventoryEvents.length === 0 ? (
+                {fuzzySearchEvents(inventoryEvents.filter(event => !event.isDeleted), searchQuery).length === 0 ? (
                     <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
                         <Truck size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-                        <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">No events logged yet</h3>
+                        <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">{searchQuery ? 'No matching events' : 'No events logged yet'}</h3>
                         <p className="text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-2">
-                            Keep track of truck loads, daily shipments, and site visits here.
+                            {searchQuery ? 'Try a different search term.' : 'Keep track of truck loads, daily shipments, and site visits here.'}
                         </p>
                     </div>
                 ) : (
-                    inventoryEvents.filter(event => !event.isDeleted).map(event => (
+                    fuzzySearchEvents(inventoryEvents.filter(event => !event.isDeleted), searchQuery).map(event => (
                         <div key={event.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-5 animate-fade-in hover:shadow-md transition-shadow">
                             {/* Image Section */}
                             <div className="w-full md:w-48 shrink-0">

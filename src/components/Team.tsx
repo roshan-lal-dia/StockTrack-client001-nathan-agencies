@@ -4,7 +4,8 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { softDeleteEntity } from '../lib/softDelete';
 import { db } from '@/lib/firebase';
 import { Role, formatDate } from '@/types';
-import { Users, Shield, UserCheck, UserX, Trash2 } from 'lucide-react';
+import { Users, Shield, UserCheck, UserX, Trash2, Search } from 'lucide-react';
+import { fuzzyMatch } from '../lib/searchUtils';
 import { useState } from 'react';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -13,6 +14,13 @@ export const Team = () => {
   const { addToast } = useToastStore();
   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter users with fuzzy search
+  const filteredUsers = usersList.filter(u => !u.isDeleted && (
+    !searchQuery.trim() || 
+    fuzzyMatch(`${u.name} ${u.email}`, searchQuery)
+  ));
 
   const handleRoleChange = async (targetUid: string, newRole: Role) => {
     if (role !== 'admin' || !isFirebaseConfigured) return;
@@ -57,7 +65,19 @@ export const Team = () => {
     <div className="max-w-4xl mx-auto animate-fade-in space-y-6">
        <div>
          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Team Management</h2>
-         <p className="text-slate-500 dark:text-slate-400">Manage user access and permissions</p>
+         <p className="text-slate-500 dark:text-slate-400">Manage user access and permissions • {filteredUsers.length} of {usersList.filter(u => !u.isDeleted).length} users</p>
+       </div>
+
+       {/* Search Bar */}
+       <div className="relative">
+         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+         <input
+           type="text"
+           placeholder="Search users by name or email..."
+           className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white"
+           value={searchQuery}
+           onChange={e => setSearchQuery(e.target.value)}
+         />
        </div>
 
        {/* Stats */}
@@ -106,14 +126,14 @@ export const Team = () => {
              </p>
           </div>
           
-          {usersList.length === 0 ? (
+          {filteredUsers.length === 0 ? (
             <div className="p-12 text-center">
               <UserX size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-              <p className="text-slate-500 dark:text-slate-400">No users found</p>
+              <p className="text-slate-500 dark:text-slate-400">{searchQuery ? 'No matching users found' : 'No users found'}</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
-               {usersList.filter(u => !u.isDeleted).map(u => (
+               {filteredUsers.map(u => (
                   <div key={u.uid} className="p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">\n                     <div className="flex items-center gap-4">
                         <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg">
                            {u.name.charAt(0).toUpperCase()}
