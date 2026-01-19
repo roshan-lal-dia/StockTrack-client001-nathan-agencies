@@ -9,6 +9,7 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **Command Palette**: Quick navigation with `Alt + K`
 - **Toast Notifications**: Non-blocking feedback for all actions
 - **Advanced Filtering**: Filter by stock level, category, location with sorting
+- **Fuzzy Search**: Multi-term search that matches partial and reordered terms (e.g., "LG 100" finds "LG waterpurifier - 100")
 - **Real-time Sync**: Firebase Firestore with offline persistence
 - **Data Portability**: Export to JSON/CSV, no vendor lock-in
 - **Role-based Access**: Admin and Staff roles with different permissions
@@ -28,10 +29,10 @@ StockTrack Pro is a modern Progressive Web App (PWA) designed for efficient ware
 - **Print Labels**: Generate and print product labels with barcodes
 - **Favorite Items**: Star/pin frequently used items for quick access
 - **PDF Reports**: Generate inventory/logs reports with filters (date, category, low stock)
-
-## Database Management
-- **Database Management**: PIN-protected log cleanup to prevent database bloat
+- **Soft Delete & Recovery**: Trash system with 90-day retention before auto-purge
+- **Database Management**: PIN-protected log cleanup with soft/hard delete options
 - **Conflict Resolution**: Handles concurrent updates with delta-based merging
+- **Recovery Panel**: Restore accidentally deleted items from trash
 
 ## Inventory Featuress
 - **Inventory Events**: Track non-stock movements like shipments, audits, and site visits
@@ -110,6 +111,14 @@ When multiple users edit the same product (online or offline):
 - **Full-Text Search**: Find categories as you type with fuzzy matching
 - **Staff/Admin Flexibility**: Both roles can add new categories freely
 
+### Fuzzy Search
+- **Multi-Term Matching**: Search with multiple terms in any order (e.g., "LG 100" matches "LG waterpurifier - 100")
+- **Partial Matching**: Find items with partial text (e.g., "water" matches "waterpurifier")
+- **All Fields**: Searches across name, short name/SKU, category, location, and notes
+- **Case-Insensitive**: Works regardless of capitalization
+- **Implemented Everywhere**: Works in Inventory, Command Palette, Barcode Scanner, Rapid Receive, Logs, and Events
+- **No External Dependencies**: Pure JavaScript implementation for fast, offline-capable search
+
 ### Data Export (`src/lib/export.ts`)
 Available in the **Backup & Export** admin panel:
 1. **Full Backup (JSON)**: Complete data dump including inventory, logs, users, and events
@@ -148,7 +157,8 @@ src/
 │   ├── DashboardCharts.tsx # Visual analytics charts
 │   ├── PrintLabels.tsx     # Generate printable product labels
 │   ├── PinVerification.tsx # PIN verification for sensitive operations
-│   ├── DatabaseAdmin.tsx   # Log cleanup and database management
+│   ├── DatabaseAdmin.tsx   # Log cleanup with soft/hard delete and server-side stats
+│   ├── RecoveryPanel.tsx   # Trash recovery system for deleted items
 │   ├── ReportGenerator.tsx # PDF report generation with filters
 │   ├── ConflictResolver.tsx # Concurrent update conflict resolution UI
 │   └── CategoryStandardization.tsx # AI-powered category cleanup
@@ -162,6 +172,8 @@ src/
 │   ├── export.ts           # Data export utilities
 │   ├── imageUtils.ts       # Cloudinary upload utilities
 │   ├── conflictResolution.ts # Delta tracking and conflict detection
+│   ├── softDelete.ts       # Soft delete, restore, and hard delete utilities
+│   ├── searchUtils.ts      # Fuzzy search utilities for multi-term matching
 │   └── categoryUtils.ts    # Category normalization utilities
 ├── types/
 │   └── index.ts            # TypeScript interfaces
@@ -217,6 +229,9 @@ docs/
 - `attachmentUrl`: Transaction attachment URL (Cloudinary)
 - `attachmentName`: Original filename of attachment
 - `timestamp`: Time of action
+- `isDeleted`: Soft delete flag (boolean)
+- `deletedAt`: Timestamp when deleted
+- `deletedBy`: User ID who deleted it
 
 ### Events (New)
 - `id`: Unique ID
@@ -226,6 +241,31 @@ docs/
 - `timestamp`: Time of event
 - `imageUrl`: Optional attachment
 
+## Database Management Features
+
+### Soft Delete System
+- **Trash Bin**: Deleted logs are moved to trash, not permanently deleted
+- **90-Day Retention**: Items in trash for >90 days eligible for auto-purge
+- **Recovery Panel**: Admins can browse trash and restore items
+- **Batch Operations**: Move multiple logs to trash at once
+- **Hard Delete (Purge)**: PIN-protected permanent deletion
+- **Server-Side Stats**: Real-time counting of logs by age (7d, 30d, 90d+)
+- **Cleanup Tools**: 
+  - **Move to Trash**: Soft delete selected logs (no PIN required)
+  - **Purge Selected**: Permanently delete selected logs (PIN required)
+  - **Cleanup Old Logs**: Permanently delete logs >90 days old (PIN required)
+
+### Soft Delete Implementation (`src/lib/softDelete.ts`)
+- `softDeleteEntity()`: Mark single entity as deleted
+- `softDeleteBatch()`: Batch soft delete up to 500 entities
+- `restoreEntity()`: Restore single deleted entity
+- `restoreBatch()`: Batch restore deleted entities
+- `hardDeleteEntity()`: Permanently delete single entity
+- `hardDeleteBatch()`: Batch permanent deletion
+- `filterDeleted()`: Filter out deleted entities from collections
+- `filterOnlyDeleted()`: Get only deleted entities
+- `isEligibleForAutoPurge()`: Check if item is >90 days in trash
+
 ## Roles
-- **Admin**: Full access + Team Management + Edit Items + Backup & Export + Category Standardization + Event Management
+- **Admin**: Full access + Team Management + Edit Items + Backup & Export + Category Standardization + Event Management + Database Cleanup + Recovery Panel
 - **Staff**: View, Add/Remove Stock, Rapid Receive/Dispatch, Add new categories, View Events

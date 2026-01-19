@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Truck, Plus, Calendar, User, X } from 'lucide-react';
+import { Truck, Plus, Calendar, User, X, Search } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { InventoryEvent, formatDate } from '@/types';
 import { ImageUpload } from './ImageUpload';
 import { UploadedImage } from '@/lib/imageUtils';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { softDeleteEntity } from '../lib/softDelete';
 import { db } from '@/lib/firebase';
 import { ImageViewer, ImageThumbnail } from './ImageViewer';
+import { fuzzySearchEvents } from '../lib/searchUtils';
 
 const EVENT_TYPES = {
     shipment: 'Truck Load / Shipment',
@@ -17,13 +19,14 @@ const EVENT_TYPES = {
 };
 
 export const InventoryEvents = () => {
-    const { inventoryEvents, userProfile, addInventoryEvent, updateInventoryEvent, deleteInventoryEvent, isFirebaseConfigured } = useStore();
+    const { inventoryEvents, userProfile, user, role, addInventoryEvent, updateInventoryEvent, softDeleteInventoryEvent, isFirebaseConfigured } = useStore();
     const { addToast } = useToastStore();
-    const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+    const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Form State
     const [formData, setFormData] = useState({
@@ -65,10 +68,19 @@ export const InventoryEvents = () => {
 
     const handleDeleteEvent = async (id: string) => {
         if (confirm('Are you sure you want to delete this event?')) {
-            deleteInventoryEvent(id);
-            addToast('Event deleted', 'success');
-            // Note: Firebase delete not implemented for simplicity in this iteration, 
-            // as it would require deleting from the 'events' collection by ID.
+            try {
+                if (isFirebaseConfigured && user) {
+                    // Soft delete in Firebase
+                    await softDeleteEntity('events', id, user.uid);
+                } else {
+                    // Soft delete in local store
+                    softDeleteInventoryEvent(id, 'local-user');
+                }
+                addToast('Event moved to trash', 'success');
+            } catch (err) {
+                console.error('Delete error:', err);
+                addToast('Failed to delete event', 'error');
+            }
         }
     };
 
@@ -96,28 +108,37 @@ export const InventoryEvents = () => {
             addToast('Event updated successfully', 'success');
         } else {
             // Create new
-            const newEvent: InventoryEvent = {
-                id: `evt_${Date.now()}`,
-                type: formData.type,
-                description: formData.description,
-                imageUrl: formData.imageUrl,
-                thumbnailUrl: formData.thumbnailUrl,
-                timestamp: now,
-                user: userProfile?.name || 'Local User'
-            };
-
-            addInventoryEvent(newEvent);
-            addToast('Event logged successfully', 'success');
-
             try {
                 if (isFirebaseConfigured && isOnline) {
+                    // Firebase mode - let realtime listener handle local store updates
                     await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'events'), {
-                        ...newEvent,
-                        timestamp: serverTimestamp()
+                        type: formData.type,
+                        description: formData.description,
+                        imageUrl: formData.imageUrl,
+                        thumbnailUrl: formData.thumbnailUrl,
+                        timestamp: serverTimestamp(),
+                        user: userProfile?.name || 'Local User',
+                        isDeleted: false
                     });
+                    addToast('Event logged successfully', 'success');
+                } else {
+                    // Offline/local mode - add directly to local store
+                    const newEvent: InventoryEvent = {
+                        id: `evt_${Date.now()}`,
+                        type: formData.type,
+                        description: formData.description,
+                        imageUrl: formData.imageUrl,
+                        thumbnailUrl: formData.thumbnailUrl,
+                        timestamp: now,
+                        user: userProfile?.name || 'Local User',
+                        isDeleted: false
+                    };
+                    addInventoryEvent(newEvent);
+                    addToast('Event logged successfully', 'success');
                 }
             } catch (error) {
-                console.warn('Sync failed, saved locally', error);
+                console.error('Failed to create event:', error);
+                addToast('Failed to create event', 'error');
             }
         }
         setIsModalOpen(false);
@@ -139,17 +160,31 @@ export const InventoryEvents = () => {
                 </button>
             </div>
 
+            {/* Search Bar */}
+            <div className="mb-4">
+                <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <input
+                        type="text"
+                        placeholder="Search events by type, description, or user..."
+                        className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                    />
+                </div>
+            </div>
+
             <div className="space-y-4">
-                {inventoryEvents.length === 0 ? (
+                {fuzzySearchEvents(inventoryEvents.filter(event => !event.isDeleted), searchQuery).length === 0 ? (
                     <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
                         <Truck size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-                        <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">No events logged yet</h3>
+                        <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">{searchQuery ? 'No matching events' : 'No events logged yet'}</h3>
                         <p className="text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-2">
-                            Keep track of truck loads, daily shipments, and site visits here.
+                            {searchQuery ? 'Try a different search term.' : 'Keep track of truck loads, daily shipments, and site visits here.'}
                         </p>
                     </div>
                 ) : (
-                    inventoryEvents.map(event => (
+                    fuzzySearchEvents(inventoryEvents.filter(event => !event.isDeleted), searchQuery).map(event => (
                         <div key={event.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-5 animate-fade-in hover:shadow-md transition-shadow">
                             {/* Image Section */}
                             <div className="w-full md:w-48 shrink-0">
@@ -209,21 +244,23 @@ export const InventoryEvents = () => {
                                     Logged by <span className="font-semibold text-slate-700 dark:text-slate-300">{event.user}</span>
                                 </div>
 
-                                {/* Action Buttons */}
-                                <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
-                                    <button
-                                        onClick={() => handleEditEvent(event)}
-                                        className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteEvent(event.id)}
-                                        className="text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline"
-                                    >
-                                        Delete
-                                    </button>
-                                </div>
+                                {/* Action Buttons - Admin Only */}
+                                {role === 'admin' && (
+                                    <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
+                                        <button
+                                            onClick={() => handleEditEvent(event)}
+                                            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteEvent(event.id)}
+                                            className="text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))

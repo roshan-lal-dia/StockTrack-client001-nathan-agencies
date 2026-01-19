@@ -26,7 +26,7 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
       addInventoryItem, updateInventoryItem, addLog, getUniqueCategories
    } = useStore();
    const { addToast } = useToastStore();
-   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+   const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
    // Transaction State
    const [transactionAmount, setTransactionAmount] = useState<string>('');
@@ -160,7 +160,8 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
                // Don't await - let it sync in background
                addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
                   ...normalizedData,
-                  lastUpdated: serverTimestamp()
+                  lastUpdated: serverTimestamp(),
+                  isDeleted: false
                }).catch(err => console.warn('Sync pending:', err.message));
 
                addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
@@ -168,6 +169,7 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
                   itemName: normalizedData.name,
                   quantity: normalizedData.quantity,
                   user: userProfile?.name || 'Unknown',
+                  isDeleted: false,
                   timestamp: serverTimestamp()
                }).catch(err => console.warn('Sync pending:', err.message));
             }
@@ -252,6 +254,7 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
                quantity: qty,
                user: userProfile?.name || 'Unknown',
                timestamp: serverTimestamp(),
+               isDeleted: false,
                ...(attachmentUrl && { attachmentUrl, attachmentName })
             }).catch(err => console.warn('Sync pending:', err.message));
          } else {

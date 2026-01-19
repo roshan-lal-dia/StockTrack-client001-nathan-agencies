@@ -29,7 +29,7 @@ export const ConflictResolver = () => {
   
   const { isFirebaseConfigured, updateInventoryItem } = useStore();
   const { addToast } = useToastStore();
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
   // Check for conflicts periodically
   useEffect(() => {

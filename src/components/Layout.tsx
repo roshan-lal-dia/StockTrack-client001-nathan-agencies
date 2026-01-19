@@ -10,6 +10,7 @@ import {
   WifiOff,
   LogOut,
   Download,
+  RotateCcw,
   Settings,
   Search,
   AlertTriangle,
@@ -26,7 +27,7 @@ import { usePWAInstall } from '@/hooks/usePWAInstall';
 interface LayoutProps {
   children: React.ReactNode;
   currentView: string;
-  onViewChange: (view: 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'settings') => void;
+  onViewChange: (view: 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'recovery' | 'settings' | 'events') => void;
   onOpenCommandPalette: () => void;
 }
 
@@ -207,6 +208,7 @@ export const Layout = ({ children, currentView, onViewChange, onOpenCommandPalet
                 <p className="px-4 text-xs font-bold text-slate-600 uppercase mb-2">Admin Zone</p>
                 <NavItem view="team" icon={Users} label="Team Management" />
                 <NavItem view="backup" icon={Download} label="Backup & Export" />
+                <NavItem view="recovery" icon={RotateCcw} label="Recovery Panel" />
               </div>
             )}
 

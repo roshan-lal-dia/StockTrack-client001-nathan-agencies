@@ -26,7 +26,7 @@ export const CategoryStandardization = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
   // Get unique values for the selected field
   const getUniqueValues = (field: FieldType): string[] => {
@@ -205,7 +205,8 @@ Chair ,CHAIR`;
               itemName: item.name,
               quantity: 0,
               user: userProfile?.name || 'System',
-              timestamp: serverTimestamp()
+              timestamp: serverTimestamp(),
+              isDeleted: false
             });
           } else {
             // Offline mode

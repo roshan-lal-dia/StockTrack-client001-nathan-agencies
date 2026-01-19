@@ -62,6 +62,10 @@ export interface InventoryItem {
   // Image fields (Cloudinary URLs - small strings, not base64)
   imageUrl?: string;
   thumbnailUrl?: string;
+  // Soft delete fields
+  isDeleted?: boolean;
+  deletedAt?: DateField;
+  deletedBy?: string;
 }
 
 export interface LogItem {
@@ -74,6 +78,10 @@ export interface LogItem {
   // Optional attachment for transaction proof
   attachmentUrl?: string;
   attachmentName?: string;
+  // Soft delete fields
+  isDeleted?: boolean;
+  deletedAt?: DateField;
+  deletedBy?: string;
 }
 
 export interface UserProfile {
@@ -83,6 +91,10 @@ export interface UserProfile {
   email?: string;
   photoUrl?: string;
   lastActive: DateField;
+  // Soft delete fields
+  isDeleted?: boolean;
+  deletedAt?: DateField;
+  deletedBy?: string;
 }
 
 export interface InventoryEvent {
@@ -93,4 +105,8 @@ export interface InventoryEvent {
   user: string;
   imageUrl?: string;
   thumbnailUrl?: string; // Optimized Cloudinary thumbnail
+  // Soft delete fields
+  isDeleted?: boolean;
+  deletedAt?: DateField;
+  deletedBy?: string;
 }

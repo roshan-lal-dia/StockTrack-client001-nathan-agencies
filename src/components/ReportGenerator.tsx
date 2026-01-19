@@ -55,7 +55,6 @@ export const ReportGenerator = () => {
     // Date filter for logs
     if (dateFrom || dateTo) {
       filteredLogs = filteredLogs.filter(log => {
-        const logDate = formatDate(log.timestamp, 'date');
         // Simple string comparison for DD/MM/YYYY might fail if we compare strings directly without parsing
         // But here we need Date objects for range comparison.
         // Let's use the parseDate helper we already have essentially logic for
@@ -94,7 +93,7 @@ export const ReportGenerator = () => {
         try {
           const { collection, query, where, getDocs, orderBy, Timestamp } = await import('firebase/firestore');
           const { db } = await import('@/lib/firebase');
-          const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+          const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
           let q = query(
             collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'),
@@ -137,8 +136,8 @@ export const ReportGenerator = () => {
 
           // Sort if we removed the orderBy
           filteredLogs.sort((a, b) => {
-            const tA = a.timestamp?.seconds || 0;
-            const tB = b.timestamp?.seconds || 0;
+            const tA = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : (a.timestamp?.seconds || 0) * 1000;
+            const tB = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : (b.timestamp?.seconds || 0) * 1000;
             return tB - tA;
           });
 

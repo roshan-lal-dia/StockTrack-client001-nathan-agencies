@@ -4,7 +4,7 @@ import { parseDate, InventoryItem, LogItem, UserProfile, InventoryEvent } from '
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
 
-const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
 /**
  * Export utility functions for generating backups from the frontend.

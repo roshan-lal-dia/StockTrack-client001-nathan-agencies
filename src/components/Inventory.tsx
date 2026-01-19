@@ -20,10 +20,10 @@ import {
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { InventoryItem } from '@/types';
+import { fuzzySearchInventory } from '../lib/searchUtils';
 import { BarcodeScanner } from './BarcodeScanner';
 import { ConfirmDialog } from './ConfirmDialog';
-import { deleteDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { softDeleteEntity } from '../lib/softDelete';
 import { PrintLabels } from './PrintLabels';
 import { ImageViewer, ImageThumbnail } from './ImageViewer';
 import { ItemDetailDrawer } from './ItemDetailDrawer';
@@ -40,7 +40,7 @@ type SortOrder = 'asc' | 'desc';
 type StockFilter = 'all' | 'low' | 'ok' | 'out' | 'favorites';
 
 export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActiveItem }: InventoryProps) => {
-  const { inventory, role, favorites, toggleFavorite, deleteInventoryItem, isFirebaseConfigured } = useStore();
+  const { inventory, role, favorites, toggleFavorite, softDeleteInventoryItem, isFirebaseConfigured, user } = useStore();
   const { addToast } = useToastStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -59,22 +59,20 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
     }
   }, [activeItemId, inventory, onClearActiveItem]);
 
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
-
   const handleDeleteItem = async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || !user) return;
 
     const itemToDelete = deleteConfirm;
     setDeleteConfirm(null);
-    addToast(`Deleted "${itemToDelete.name}"`, 'success');
+    addToast(`Moved "${itemToDelete.name}" to trash`, 'success');
 
     try {
       if (isFirebaseConfigured) {
-        // Delete from Firebase
-        await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', itemToDelete.id));
+        // Soft delete in Firebase
+        await softDeleteEntity('inventory', itemToDelete.id, user.uid);
       } else {
-        // Delete from local store
-        deleteInventoryItem(itemToDelete.id);
+        // Soft delete in local store
+        softDeleteInventoryItem(itemToDelete.id, 'local-user');
       }
     } catch (err) {
       console.error('Delete error:', err);
@@ -91,15 +89,19 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
   const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
 
   // Get unique categories and locations (sorted alphabetically)
-  const categories = useMemo(() => {
-    const cats = new Set(inventory.map(i => i.category).filter(Boolean));
-    return ['all', ...Array.from(cats).sort((a, b) => a.localeCompare(b))];
+  const uniqueCategories = useMemo(() => {
+    const cats = new Set(inventory.filter(i => !i.isDeleted).map(i => i.category).filter(Boolean));
+    return Array.from(cats).sort();
   }, [inventory]);
 
-  const locations = useMemo(() => {
-    const locs = new Set(inventory.map(i => i.location).filter(Boolean));
-    return ['all', ...Array.from(locs).sort((a, b) => a.localeCompare(b))];
+  const uniqueLocations = useMemo(() => {
+    const locs = new Set(inventory.filter(i => !i.isDeleted).map(i => i.location).filter(Boolean));
+    return Array.from(locs).sort();
   }, [inventory]);
+
+  // Dropdown options with "all" prepended
+  const categories = useMemo(() => ['all', ...uniqueCategories], [uniqueCategories]);
+  const locations = useMemo(() => ['all', ...uniqueLocations], [uniqueLocations]);
 
   const handleBarcodeScan = (code: string, item?: InventoryItem) => {
     if (item) {
@@ -113,17 +115,12 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
   };
 
   const filteredInventory = useMemo(() => {
-    let result = [...inventory];
+    // Filter out soft-deleted items first
+    let result = inventory.filter(item => !item.isDeleted);
 
-    // Text search
+    // Text search with fuzzy matching
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(i =>
-        i.name.toLowerCase().includes(q) ||
-        (i.shortName && i.shortName.toLowerCase().includes(q)) ||
-        i.category.toLowerCase().includes(q) ||
-        i.location.toLowerCase().includes(q)
-      );
+      result = fuzzySearchInventory(result, searchQuery);
     }
 
     // Stock filter
@@ -158,7 +155,7 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
     });
 
     return result;
-  }, [inventory, searchQuery, stockFilter, categoryFilter, locationFilter, sortField, sortOrder]);
+  }, [inventory, searchQuery, stockFilter, categoryFilter, locationFilter, sortField, sortOrder, favorites]);
 
   const activeFiltersCount = [stockFilter !== 'all', categoryFilter !== 'all', locationFilter !== 'all'].filter(Boolean).length;
 
@@ -176,7 +173,7 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
         <div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Inventory</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {filteredInventory.length} of {inventory.length} items
+            {filteredInventory.length} of {inventory.filter(i => !i.isDeleted).length} items
           </p>
         </div>
         <div className="flex gap-2 w-full md:w-auto flex-wrap">

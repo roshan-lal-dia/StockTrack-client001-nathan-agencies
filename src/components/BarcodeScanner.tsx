@@ -3,6 +3,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, X, Search, Package } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
+import { fuzzySearchInventory } from '../lib/searchUtils';
 
 interface BarcodeScannerProps {
   isOpen: boolean;
@@ -76,12 +77,9 @@ export const BarcodeScanner = ({ isOpen, onClose, onScan, mode = 'search' }: Bar
     
     setLastScanned(code);
     
-    // Look for matching item by name, SKU, or barcode in notes
-    const matchedItem = inventory.find(item => 
-      item.name.toLowerCase().includes(code.toLowerCase()) ||
-      item.notes?.toLowerCase().includes(code.toLowerCase()) ||
-      item.notes?.includes(code)
-    );
+    // Look for matching item by name, SKU, or barcode in notes using fuzzy search
+    const matches = fuzzySearchInventory(inventory.filter(i => !i.isDeleted), code);
+    const matchedItem = matches.length > 0 ? matches[0] : null;
 
     if (matchedItem) {
       addToast(`Found: ${matchedItem.name}`, 'success');

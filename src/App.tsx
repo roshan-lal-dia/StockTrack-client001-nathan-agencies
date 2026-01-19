@@ -11,6 +11,7 @@ import { RapidReceive } from '@/components/RapidReceive';
 import { Logs } from '@/components/Logs';
 import { Team } from '@/components/Team';
 import { Backup } from '@/components/Backup';
+import { RecoveryPanel } from '@/components/RecoveryPanel';
 import { Settings } from '@/components/Settings';
 import { Modals } from '@/components/Modals';
 import { ToastContainer } from '@/components/Toast';
@@ -27,7 +28,7 @@ import {
   clearSyncedChanges
 } from '@/lib/conflictResolution';
 
-type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'settings' | 'events';
+type ViewType = 'dashboard' | 'inventory' | 'history' | 'rapid-receive' | 'team' | 'backup' | 'recovery' | 'settings' | 'events';
 
 function App() {
   const {
@@ -45,7 +46,7 @@ function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
   // Initialize theme once on mount
   useEffect(() => {
@@ -134,6 +135,7 @@ function App() {
       case 'rapid-receive':
       case 'team':
       case 'backup':
+      case 'recovery':
       case 'settings':
         setView(command as ViewType);
         break;
@@ -236,7 +238,8 @@ function App() {
               role: 'staff', // Default to staff, admin can promote
               name: displayName,
               email: u.email || undefined,
-              lastActive: serverTimestamp() as Timestamp
+              lastActive: serverTimestamp() as Timestamp,
+              isDeleted: false
             };
             await setDoc(userRef, newProfile);
             const profileWithStringDate = { ...newProfile, lastActive: new Date().toISOString() };
@@ -432,6 +435,7 @@ function App() {
         {view === 'events' && <InventoryEvents />}
         {view === 'team' && role === 'admin' && <Team />}
         {view === 'backup' && role === 'admin' && <Backup />}
+        {view === 'recovery' && role === 'admin' && <RecoveryPanel />}
         {view === 'settings' && <Settings />}
 
         <Modals

@@ -13,7 +13,7 @@ export const InstallModal = ({ isOpen, onClose }: InstallModalProps) => {
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-sm w-full p-6 text-center relative animate-scale-in">
@@ -26,7 +26,7 @@ export const InstallModal = ({ isOpen, onClose }: InstallModalProps) => {
         </button>
         
         {/* Icon */}
-        <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg">
+        <div className="w-20 h-20 bg-linear-to-br from-indigo-500 to-purple-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg">
           <Smartphone size={40} className="text-white" />
         </div>
         
@@ -45,7 +45,7 @@ export const InstallModal = ({ isOpen, onClose }: InstallModalProps) => {
             <div className="space-y-4 text-left bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl mb-6">
               {/* Step 1 */}
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center shrink-0">
                   <span className="font-bold text-indigo-600 dark:text-indigo-400">1</span>
                 </div>
                 <div className="flex-1">
@@ -60,7 +60,7 @@ export const InstallModal = ({ isOpen, onClose }: InstallModalProps) => {
               
               {/* Step 2 */}
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center shrink-0">
                   <span className="font-bold text-indigo-600 dark:text-indigo-400">2</span>
                 </div>
                 <div className="flex-1">
@@ -75,7 +75,7 @@ export const InstallModal = ({ isOpen, onClose }: InstallModalProps) => {
               
               {/* Step 3 */}
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center shrink-0">
                   <span className="font-bold text-indigo-600 dark:text-indigo-400">3</span>
                 </div>
                 <div className="flex-1">
@@ -106,7 +106,7 @@ export const InstallModal = ({ isOpen, onClose }: InstallModalProps) => {
             <div className="space-y-4 text-left bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl mb-6">
               {/* Step 1 */}
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center shrink-0">
                   <span className="font-bold text-indigo-600 dark:text-indigo-400">1</span>
                 </div>
                 <div className="flex-1">
@@ -121,7 +121,7 @@ export const InstallModal = ({ isOpen, onClose }: InstallModalProps) => {
               
               {/* Step 2 */}
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center shrink-0">
                   <span className="font-bold text-indigo-600 dark:text-indigo-400">2</span>
                 </div>
                 <div className="flex-1">
@@ -133,7 +133,7 @@ export const InstallModal = ({ isOpen, onClose }: InstallModalProps) => {
               
               {/* Step 3 */}
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center shrink-0">
                   <span className="font-bold text-indigo-600 dark:text-indigo-400">3</span>
                 </div>
                 <div className="flex-1">
