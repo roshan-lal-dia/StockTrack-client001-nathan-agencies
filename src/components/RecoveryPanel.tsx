@@ -36,19 +36,17 @@ export const RecoveryPanel: React.FC = () => {
     if (!searchQuery.trim()) return true;
     
     let searchableText = '';
-    if ('name' in item) searchableText = `${item.name} ${(item as any).category || ''}`;
-    else if ('itemName' in item) searchableText = `${item.itemName} ${item.user}`;
-    else if ('description' in item) searchableText = `${item.type} ${item.description}`;
-    else if ('email' in item) searchableText = `${item.name} ${item.email}`;
+    if ('name' in item && 'category' in item) searchableText = `${item.name} ${(item as InventoryItem).category || ''}`;
+    else if ('itemName' in item) searchableText = `${(item as LogItem).itemName} ${(item as LogItem).user}`;
+    else if ('description' in item) searchableText = `${(item as InventoryEvent).type} ${(item as InventoryEvent).description}`;
+    else if ('email' in item) searchableText = `${(item as UserProfile).name} ${(item as UserProfile).email}`;
     
     return fuzzyMatch(searchableText, searchQuery);
   });
   
   // Confirmation states
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
-  const [purgeTarget, setPurgeTarget] = useState<string | null>(null);
   const [showBulkRestoreConfirm, setShowBulkRestoreConfirm] = useState(false);
-  const [showBulkPurgeConfirm, setShowBulkPurgeConfirm] = useState(false);
   const [showPinVerify, setShowPinVerify] = useState(false);
   const [pendingPurgeAction, setPendingPurgeAction] = useState<(() => Promise<void>) | null>(null);
 
@@ -120,15 +118,14 @@ export const RecoveryPanel: React.FC = () => {
     }
   };
 
-  // Single item permanent delete (requires PIN)
-  const handlePermanentDelete = async () => {
-    if (!purgeTarget || !user) return;
+  // Request permanent delete - goes straight to PIN
+  const requestPermanentDelete = (itemId: string) => {
+    if (!user) return;
 
     const action = async () => {
       try {
-        await hardDeleteEntity(activeTab, purgeTarget);
+        await hardDeleteEntity(activeTab, itemId);
         addToast('Item permanently deleted', 'success');
-        setPurgeTarget(null);
         loadDeletedItems();
       } catch (error) {
         console.error('Permanent delete error:', error);
@@ -140,15 +137,20 @@ export const RecoveryPanel: React.FC = () => {
     setShowPinVerify(true);
   };
 
-  // Bulk permanent delete (requires PIN)
-  const handleBulkPermanentDelete = async () => {
-    if (selectedIds.size === 0 || !user) return;
+  // Request bulk permanent delete - goes straight to PIN
+  const requestBulkPermanentDelete = () => {
+    if (selectedIds.size === 0 || !user) {
+      addToast('No items selected', 'error');
+      return;
+    }
+
+    const idsToDelete = Array.from(selectedIds);
 
     const action = async () => {
       try {
-        await hardDeleteBatch(activeTab, Array.from(selectedIds));
-        addToast(`Permanently deleted ${selectedIds.size} items`, 'success');
-        setShowBulkPurgeConfirm(false);
+        await hardDeleteBatch(activeTab, idsToDelete);
+        addToast(`Permanently deleted ${idsToDelete.length} items`, 'success');
+        setSelectedIds(new Set());
         loadDeletedItems();
       } catch (error) {
         console.error('Bulk permanent delete error:', error);
@@ -208,28 +210,28 @@ export const RecoveryPanel: React.FC = () => {
       case 'logs':
         return (
           <div>
-            <div className="font-medium">{item.itemName}</div>
+            <div className="font-medium">{item.itemName || 'Unknown Item'}</div>
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              Type: {item.type.toUpperCase()} | Qty: {item.quantity} | By: {item.user}
+              Type: {item.type ? item.type.toUpperCase() : 'UNKNOWN'} | Qty: {item.quantity || 0} | By: {item.user || 'Unknown'}
             </div>
           </div>
         );
       case 'users':
         return (
           <div>
-            <div className="font-medium">{item.name}</div>
+            <div className="font-medium">{item.name || 'Unknown User'}</div>
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              Role: {item.role} | Email: {item.email || 'N/A'}
+              Role: {item.role || 'N/A'} | Email: {item.email || 'N/A'}
             </div>
           </div>
         );
       case 'events':
         return (
           <div>
-            <div className="font-medium capitalize">{item.type}</div>
+            <div className="font-medium capitalize">{item.type || 'Other'}</div>
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              {item.description.substring(0, 80)}
-              {item.description.length > 80 && '...'}
+              {item.description ? item.description.substring(0, 80) : 'No description'}
+              {item.description && item.description.length > 80 && '...'}
             </div>
           </div>
         );
@@ -325,7 +327,7 @@ export const RecoveryPanel: React.FC = () => {
                 <span>Restore Selected</span>
               </button>
               <button
-                onClick={() => setShowBulkPurgeConfirm(true)}
+                onClick={requestBulkPermanentDelete}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center space-x-2"
               >
                 <Trash2 className="h-4 w-4" />
@@ -363,7 +365,7 @@ export const RecoveryPanel: React.FC = () => {
                   />
                   <div className="flex-1">{renderItemDetails(item)}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    Deleted: {formatDate(item.deletedAt, 'datetime')}
+                    Deleted: {item.deletedAt ? formatDate(item.deletedAt, 'datetime') : 'Unknown'}
                   </div>
                 </div>
                 <div className="flex space-x-2 ml-4">
@@ -375,7 +377,7 @@ export const RecoveryPanel: React.FC = () => {
                     <RotateCcw className="h-5 w-5" />
                   </button>
                   <button
-                    onClick={() => setPurgeTarget(itemId)}
+                    onClick={() => requestPermanentDelete(itemId)}
                     className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                     title="Permanently Delete"
                   >
@@ -395,8 +397,6 @@ export const RecoveryPanel: React.FC = () => {
         message="Are you sure you want to restore this item? It will be available again in the main view."
         onConfirm={handleRestore}
         onCancel={() => setRestoreTarget(null)}
-        confirmText="Restore"
-        cancelText="Cancel"
       />
 
       <ConfirmDialog
@@ -405,41 +405,16 @@ export const RecoveryPanel: React.FC = () => {
         message={`Are you sure you want to restore ${selectedIds.size} items?`}
         onConfirm={handleBulkRestore}
         onCancel={() => setShowBulkRestoreConfirm(false)}
-        confirmText="Restore All"
-        cancelText="Cancel"
-      />
-
-      <ConfirmDialog
-        isOpen={!!purgeTarget}
-        title="Permanently Delete"
-        message="⚠️ This action cannot be undone! The item will be permanently removed from the database. This requires PIN verification."
-        onConfirm={handlePermanentDelete}
-        onCancel={() => setPurgeTarget(null)}
-        confirmText="Continue to PIN"
-        cancelText="Cancel"
-        isDangerous
-      />
-
-      <ConfirmDialog
-        isOpen={showBulkPurgeConfirm}
-        title="Permanently Delete Multiple Items"
-        message={`⚠️ This action cannot be undone! ${selectedIds.size} items will be permanently removed from the database. This requires PIN verification.`}
-        onConfirm={handleBulkPermanentDelete}
-        onCancel={() => setShowBulkPurgeConfirm(false)}
-        confirmText="Continue to PIN"
-        cancelText="Cancel"
-        isDangerous
       />
 
       {/* PIN Verification */}
       {showPinVerify && (
         <PinVerification
+          isOpen={showPinVerify}
           onVerified={onPinVerified}
-          onCancel={() => {
+          onClose={() => {
             setShowPinVerify(false);
             setPendingPurgeAction(null);
-            setPurgeTarget(null);
-            setShowBulkPurgeConfirm(false);
           }}
         />
       )}

@@ -1,8 +1,8 @@
-import { doc, updateDoc, writeBatch, collection, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import type { InventoryItem, LogItem, UserProfile, InventoryEvent } from '../types';
 
-const APP_ID = 'stocktrack_pro_v1';
+const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
 type SoftDeletableEntity = InventoryItem | LogItem | UserProfile | InventoryEvent;
 type EntityType = 'inventory' | 'logs' | 'users' | 'events';

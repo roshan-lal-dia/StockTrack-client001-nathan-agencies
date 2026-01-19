@@ -10,9 +10,9 @@ import { useState } from 'react';
 import { ConfirmDialog } from './ConfirmDialog';
 
 export const Team = () => {
-  const { usersList, user, role, isFirebaseConfigured, softDeleteUser } = useStore();
+  const { usersList, user, role, isFirebaseConfigured } = useStore();
   const { addToast } = useToastStore();
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -134,8 +134,9 @@ export const Team = () => {
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
                {filteredUsers.map(u => (
-                  <div key={u.uid} className="p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">\n                     <div className="flex items-center gap-4">
-                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg">
+                  <div key={u.uid} className="p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                     <div className="flex items-center gap-4">
+                        <div className="w-11 h-11 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg">
                            {u.name.charAt(0).toUpperCase()}
                         </div>
                         <div>

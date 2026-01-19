@@ -41,7 +41,7 @@ export const CSVImport = () => {
   const [showPreview, setShowPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || '1:209181493394:web:5d77025b3fa2088c8a3e4b';
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -147,7 +147,8 @@ export const CSVImport = () => {
             minStock: item.minStock,
             location: item.location,
             notes: item.notes,
-            lastUpdated: serverTimestamp()
+            lastUpdated: serverTimestamp(),
+            isDeleted: false
           };
           if (item.shortName) itemData.shortName = item.shortName;
 
@@ -159,7 +160,8 @@ export const CSVImport = () => {
             itemName: item.name,
             quantity: item.quantity,
             user: userProfile?.name || 'Import',
-            timestamp: serverTimestamp()
+            timestamp: serverTimestamp(),
+            isDeleted: false
           }).catch(err => console.warn('Sync pending:', err.message));
         } else {
           // Offline mode

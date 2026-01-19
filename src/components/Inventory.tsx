@@ -24,7 +24,6 @@ import { fuzzySearchInventory } from '../lib/searchUtils';
 import { BarcodeScanner } from './BarcodeScanner';
 import { ConfirmDialog } from './ConfirmDialog';
 import { softDeleteEntity } from '../lib/softDelete';
-import { db } from '@/lib/firebase';
 import { PrintLabels } from './PrintLabels';
 import { ImageViewer, ImageThumbnail } from './ImageViewer';
 import { ItemDetailDrawer } from './ItemDetailDrawer';
@@ -41,7 +40,7 @@ type SortOrder = 'asc' | 'desc';
 type StockFilter = 'all' | 'low' | 'ok' | 'out' | 'favorites';
 
 export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActiveItem }: InventoryProps) => {
-  const { inventory, role, favorites, toggleFavorite, softDeleteInventoryItem, deleteInventoryItem, isFirebaseConfigured, user } = useStore();
+  const { inventory, role, favorites, toggleFavorite, softDeleteInventoryItem, isFirebaseConfigured, user } = useStore();
   const { addToast } = useToastStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -59,8 +58,6 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
       }
     }
   }, [activeItemId, inventory, onClearActiveItem]);
-
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
 
   const handleDeleteItem = async () => {
     if (!deleteConfirm || !user) return;
@@ -101,6 +98,10 @@ export const Inventory = ({ onNavigate, onOpenModal, activeItemId, onClearActive
     const locs = new Set(inventory.filter(i => !i.isDeleted).map(i => i.location).filter(Boolean));
     return Array.from(locs).sort();
   }, [inventory]);
+
+  // Dropdown options with "all" prepended
+  const categories = useMemo(() => ['all', ...uniqueCategories], [uniqueCategories]);
+  const locations = useMemo(() => ['all', ...uniqueLocations], [uniqueLocations]);
 
   const handleBarcodeScan = (code: string, item?: InventoryItem) => {
     if (item) {

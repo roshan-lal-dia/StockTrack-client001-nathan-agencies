@@ -46,7 +46,7 @@ function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
   // Initialize theme once on mount
   useEffect(() => {
@@ -238,7 +238,8 @@ function App() {
               role: 'staff', // Default to staff, admin can promote
               name: displayName,
               email: u.email || undefined,
-              lastActive: serverTimestamp() as Timestamp
+              lastActive: serverTimestamp() as Timestamp,
+              isDeleted: false
             };
             await setDoc(userRef, newProfile);
             const profileWithStringDate = { ...newProfile, lastActive: new Date().toISOString() };

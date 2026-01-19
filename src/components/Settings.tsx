@@ -18,7 +18,7 @@ export const Settings = () => {
   
   const { canPrompt, isInstalled, isInstalling, instructions, platform, promptInstall, debug } = usePWAInstall();
 
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
   const handleInstallApp = async () => {
     const result = await promptInstall();

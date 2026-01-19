@@ -2,7 +2,7 @@ import { collection, query, where, getDocs, limit, Timestamp } from 'firebase/fi
 import { db } from './firebase';
 import { LogItem, InventoryItem, UserProfile, InventoryEvent } from '@/types';
 
-const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
 /**
  * Fetch logs by date range, excluding soft-deleted logs

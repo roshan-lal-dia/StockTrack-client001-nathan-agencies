@@ -1,7 +1,7 @@
-import { collection, getDocs, writeBatch, doc } from 'firebase/firestore';
+import { collection, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 
-const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 const MIGRATION_KEY = 'stocktrack_soft_delete_migration_v1';
 
 /**

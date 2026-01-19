@@ -19,9 +19,9 @@ const EVENT_TYPES = {
 };
 
 export const InventoryEvents = () => {
-    const { inventoryEvents, userProfile, user, addInventoryEvent, updateInventoryEvent, softDeleteInventoryEvent, isFirebaseConfigured } = useStore();
+    const { inventoryEvents, userProfile, user, role, addInventoryEvent, updateInventoryEvent, softDeleteInventoryEvent, isFirebaseConfigured } = useStore();
     const { addToast } = useToastStore();
-    const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+    const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
@@ -108,28 +108,37 @@ export const InventoryEvents = () => {
             addToast('Event updated successfully', 'success');
         } else {
             // Create new
-            const newEvent: InventoryEvent = {
-                id: `evt_${Date.now()}`,
-                type: formData.type,
-                description: formData.description,
-                imageUrl: formData.imageUrl,
-                thumbnailUrl: formData.thumbnailUrl,
-                timestamp: now,
-                user: userProfile?.name || 'Local User'
-            };
-
-            addInventoryEvent(newEvent);
-            addToast('Event logged successfully', 'success');
-
             try {
                 if (isFirebaseConfigured && isOnline) {
+                    // Firebase mode - let realtime listener handle local store updates
                     await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'events'), {
-                        ...newEvent,
-                        timestamp: serverTimestamp()
+                        type: formData.type,
+                        description: formData.description,
+                        imageUrl: formData.imageUrl,
+                        thumbnailUrl: formData.thumbnailUrl,
+                        timestamp: serverTimestamp(),
+                        user: userProfile?.name || 'Local User',
+                        isDeleted: false
                     });
+                    addToast('Event logged successfully', 'success');
+                } else {
+                    // Offline/local mode - add directly to local store
+                    const newEvent: InventoryEvent = {
+                        id: `evt_${Date.now()}`,
+                        type: formData.type,
+                        description: formData.description,
+                        imageUrl: formData.imageUrl,
+                        thumbnailUrl: formData.thumbnailUrl,
+                        timestamp: now,
+                        user: userProfile?.name || 'Local User',
+                        isDeleted: false
+                    };
+                    addInventoryEvent(newEvent);
+                    addToast('Event logged successfully', 'success');
                 }
             } catch (error) {
-                console.warn('Sync failed, saved locally', error);
+                console.error('Failed to create event:', error);
+                addToast('Failed to create event', 'error');
             }
         }
         setIsModalOpen(false);
@@ -235,21 +244,23 @@ export const InventoryEvents = () => {
                                     Logged by <span className="font-semibold text-slate-700 dark:text-slate-300">{event.user}</span>
                                 </div>
 
-                                {/* Action Buttons */}
-                                <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
-                                    <button
-                                        onClick={() => handleEditEvent(event)}
-                                        className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteEvent(event.id)}
-                                        className="text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline"
-                                    >
-                                        Delete
-                                    </button>
-                                </div>
+                                {/* Action Buttons - Admin Only */}
+                                {role === 'admin' && (
+                                    <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
+                                        <button
+                                            onClick={() => handleEditEvent(event)}
+                                            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteEvent(event.id)}
+                                            className="text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))

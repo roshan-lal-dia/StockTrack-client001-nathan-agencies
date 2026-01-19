@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
-import { Zap, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, increment } from 'firebase/firestore';
@@ -80,7 +80,7 @@ export const RapidReceive = () => {
     setSelectedIndex(-1);
   };
 
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
 
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,15 +125,15 @@ export const RapidReceive = () => {
             lastUpdated: serverTimestamp()
           }).catch(err => console.warn('Sync pending:', err.message));
           addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
-            type: mode, itemName: existing.name, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
+            type: mode, itemName: existing.name, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp(), isDeleted: false
           }).catch(err => console.warn('Sync pending:', err.message));
         } else {
           // Only for IN mode (OUT mode already checked above)
           addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
-            name: localName, category: normalizeCategory('UNCATEGORIZED'), quantity: qty, minStock: 5, location: 'Receiving', notes: '', lastUpdated: serverTimestamp()
+            name: localName, category: normalizeCategory('UNCATEGORIZED'), quantity: qty, minStock: 5, location: 'Receiving', notes: '', lastUpdated: serverTimestamp(), isDeleted: false
           }).catch(err => console.warn('Sync pending:', err.message));
           addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
-            type: 'create', itemName: localName, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp()
+            type: 'create', itemName: localName, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp(), isDeleted: false
           }).catch(err => console.warn('Sync pending:', err.message));
         }
       } else {

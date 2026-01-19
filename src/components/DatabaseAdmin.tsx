@@ -28,7 +28,7 @@ export const DatabaseAdmin = () => {
   const [dateFilter, setDateFilter] = useState<'all' | '7d' | '30d' | '90d' | 'older'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'in' | 'out' | 'create'>('all');
 
-  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+  const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID || '1:209181493394:web:5d77025b3fa2088c8a3e4b';
 
   // Filter logs
   const filteredLogs = useMemo(() => {
