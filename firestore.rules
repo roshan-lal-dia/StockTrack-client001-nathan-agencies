@@ -53,12 +53,16 @@ service cloud.firestore {
         get(/databases/$(database)/documents/artifacts/$(appId)/public/data/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Events collection - all authenticated can read/create/update (for soft delete)/delete (for hard delete)
+    // Events collection - all authenticated can read/create, only admins can update (edit) and delete
     match /artifacts/{appId}/public/data/events/{eventId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      // Only admins can update events (for editing and soft delete)
+      allow update: if isAuthenticated() && 
+        get(/databases/$(database)/documents/artifacts/$(appId)/public/data/users/$(request.auth.uid)).data.role == 'admin';
+      // Only admins can hard delete events (for permanent purge)
+      allow delete: if isAuthenticated() && 
+        get(/databases/$(database)/documents/artifacts/$(appId)/public/data/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }
