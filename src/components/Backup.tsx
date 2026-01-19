@@ -6,7 +6,7 @@ import { useStore } from '@/store/useStore';
 import { CSVImport } from './CSVImport';
 import { DatabaseAdmin } from './DatabaseAdmin';
 import { ReportGenerator } from './ReportGenerator';
-import { MigrationButton } from './MigrationButton';
+//import { MigrationButton } from './MigrationButton';
 // One-time standardization tool - uncomment if needed again
 // import { CategoryStandardization } from './CategoryStandardization';
 
@@ -73,8 +73,8 @@ export const Backup = () => {
         <p className="text-slate-500 dark:text-slate-400">Import, export, and backup your inventory data</p>
       </div>
 
-      {/* Migration Button - Comment out after running once */}
-      <MigrationButton />
+      {/* Migration Button - Comment out after running once  <MigrationButton />*/}
+      
 
       {/* CSV Import Section */}
       <CSVImport />
