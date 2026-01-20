@@ -3,7 +3,7 @@ import { X, ArrowDownCircle, ArrowUpCircle, ChevronDown } from 'lucide-react';
 import { InventoryItem } from '@/types';
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
-import { doc, updateDoc, addDoc, collection, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, serverTimestamp, increment, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { ImageUpload, AttachmentUpload } from './ImageUpload';
 import { UploadedImage } from '@/lib/imageUtils';
@@ -150,28 +150,38 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
          if (isFirebaseConfigured) {
             // Firebase mode - writes are queued offline and sync automatically
             if (activeModal === 'edit' && selectedItem) {
+               // Edit: single update (no log needed)
                const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
-               // Don't await - let it sync in background
                updateDoc(ref, {
                   ...normalizedData,
                   lastUpdated: serverTimestamp()
                }).catch(err => console.warn('Sync pending:', err.message));
             } else {
-               // Don't await - let it sync in background
-               addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
+               // ✅ ATOMIC BATCH WRITE: Create item + log together
+               // Prevents partial creation if offline/crash
+               const batch = writeBatch(db);
+               
+               // Create inventory item
+               const inventoryRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'));
+               batch.set(inventoryRef, {
                   ...normalizedData,
                   lastUpdated: serverTimestamp(),
                   isDeleted: false
-               }).catch(err => console.warn('Sync pending:', err.message));
-
-               addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+               });
+               
+               // Create log entry
+               const logRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'));
+               batch.set(logRef, {
                   type: 'create',
                   itemName: normalizedData.name,
                   quantity: normalizedData.quantity,
                   user: userProfile?.name || 'Unknown',
                   isDeleted: false,
                   timestamp: serverTimestamp()
-               }).catch(err => console.warn('Sync pending:', err.message));
+               });
+               
+               // Commit atomically
+               batch.commit().catch(err => console.warn('Sync pending:', err.message));
             }
          } else {
             // Pure offline mode - use local storage
@@ -241,14 +251,20 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
 
       try {
          if (isFirebaseConfigured) {
-            // Firebase mode - don't await, let it sync in background
-            const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
-            updateDoc(ref, {
+            // ✅ ATOMIC BATCH WRITE: Both operations succeed or both fail
+            // Works offline - queued and replayed atomically on reconnect
+            const batch = writeBatch(db);
+            
+            // Update inventory quantity
+            const inventoryRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', selectedItem.id);
+            batch.update(inventoryRef, {
                quantity: transactionType === 'in' ? increment(qty) : increment(-qty),
                lastUpdated: serverTimestamp()
-            }).catch(err => console.warn('Sync pending:', err.message));
+            });
 
-            addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
+            // Create transaction log
+            const logRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'));
+            batch.set(logRef, {
                type: transactionType,
                itemName: selectedItem.name,
                quantity: qty,
@@ -256,7 +272,10 @@ export const Modals = ({ activeModal, selectedItem, initialTransactionType = 'in
                timestamp: serverTimestamp(),
                isDeleted: false,
                ...(attachmentUrl && { attachmentUrl, attachmentName })
-            }).catch(err => console.warn('Sync pending:', err.message));
+            });
+            
+            // Commit atomically - don't await for better UX (queues offline)
+            batch.commit().catch(err => console.warn('Sync pending:', err.message));
          } else {
             // Pure offline mode - use local storage
             updateInventoryItem(selectedItem.id, {

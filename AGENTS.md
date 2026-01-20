@@ -159,6 +159,7 @@ src/
 │   ├── RecoveryPanel.tsx   # Trash recovery system for deleted items
 │   ├── ReportGenerator.tsx # PDF report generation with filters
 │   ├── ConflictResolver.tsx # Concurrent update conflict resolution UI
+│   ├── InventoryReconciliation.tsx # One-time quantity fix from logs
 │   └── CategoryStandardization.tsx # AI-powered category cleanup
 ├── store/
 │   ├── useStore.ts         # Main app state (Zustand)
@@ -172,6 +173,7 @@ src/
 │   ├── conflictResolution.ts # Delta tracking and conflict detection
 │   ├── softDelete.ts       # Soft delete, restore, and hard delete utilities
 │   ├── searchUtils.ts      # Fuzzy search utilities for multi-term matching
+│   ├── reconciliation.ts   # One-time quantity recalculation from logs
 │   └── categoryUtils.ts    # Category normalization utilities
 ├── types/
 │   └── index.ts            # TypeScript interfaces
@@ -203,6 +205,92 @@ docs/
     ```
     See `docs/CLOUDINARY_SETUP.md` for detailed Cloudinary setup instructions.
 4. `npm run dev`
+
+## Data Architecture & Integrity
+
+### Quantity Management Strategy
+**Current Stock Quantity = Source of Truth**
+
+The `quantity` field in the inventory document is the **authoritative source** for current stock levels:
+
+1. **Firestore Batch Writes**: All stock updates use atomic batch operations
+   - `writeBatch()` commits log + quantity update together
+   - Both operations succeed or both fail (all-or-nothing)
+   - Prevents partial updates if app crashes or network fails
+   - Works offline: queued and replayed atomically on reconnect
+
+2. **Example Transaction Flow**:
+   ```typescript
+   const batch = writeBatch(db);
+   
+   // Update quantity
+   batch.update(inventoryRef, {
+     quantity: increment(5),
+     lastUpdated: serverTimestamp()
+   });
+   
+   // Create log entry  
+   batch.set(logRef, {
+     type: 'IN',
+     itemName: 'Product A',
+     quantity: 5,
+     // ...other fields
+   });
+   
+   // ✅ Commit atomically - both succeed or both fail
+   await batch.commit();
+   ```
+
+3. **Offline Support**:
+   - Batch operations are queued when offline
+   - Firestore replays them atomically when reconnected
+   - No partial updates possible
+   - UI updates immediately for good UX
+
+4. **Logs are Audit Trail Only**: Transaction logs (`IN`, `OUT`, `CREATE`, `AUDIT`) serve as:
+   - Historical record of who did what and when
+   - Compliance and auditing requirements
+   - Activity reports and analytics
+   - **NOT** used for calculating current quantity
+
+5. **Why Not Calculate from Logs?**
+   - Logs can be deleted/archived for space management
+   - Would create circular dependency (logs needed for quantity, quantity needed for logs)
+   - Performance: instant reads vs. summing thousands of logs
+   - Simpler architecture: single source of truth
+
+### One-Time Reconciliation Tool
+**Location**: Admin Panel → Backup & Export → Inventory Reconciliation
+
+Use this tool **ONCE** if you suspect quantity discrepancies from past sync issues (before atomic batch writes were implemented):
+
+1. **Analyze**: Scans all items and compares stored quantity vs. calculated from logs
+2. **Review**: Shows discrepancies with detailed breakdown
+3. **Fix**: Updates quantities to match log calculations
+4. **Going Forward**: After fixing, quantity field becomes permanent source of truth
+
+**When to Use:**
+- After upgrading from older version without atomic batch writes
+- If you suspect historical data inconsistencies
+- After migration from another system
+- **NOT needed for new installations** - atomic writes prevent issues
+
+**Implementation**: `src/lib/reconciliation.ts`
+- `analyzeInventory()`: Detects discrepancies (fetches ALL logs from server)
+- `reconcileAllInventory()`: Batch fixes all items
+- `calculateQuantityFromLogs()`: Sums CREATE + IN - OUT transactions
+
+**Technical Details:**
+- Fetches ALL logs directly from Firebase (bypasses 500-log UI limit)
+- May take 10-30 seconds for databases with 10,000+ logs
+- Uses `getDocs()` without `limit()` for complete analysis
+
+### Log Management
+- Logs can be safely **deleted** or **archived** for database optimization
+- Deletion does NOT affect current stock quantities
+- Soft delete available with 90-day trash retention
+- Hard delete (purge) requires admin PIN verification
+- Export logs before deletion for long-term compliance
 
 ## Data Model
 

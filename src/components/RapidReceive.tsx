@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react';
 import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useToastStore } from '@/store/useToastStore';
-import { collection, addDoc, updateDoc, doc, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, serverTimestamp, increment, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { InventoryItem } from '@/types';
 import { normalizeCategory } from '@/lib/categoryUtils';
@@ -116,26 +116,56 @@ export const RapidReceive = () => {
 
     try {
       if (isFirebaseConfigured) {
-        // Firebase mode - don't await, let it sync in background
+        // ✅ ATOMIC BATCH WRITES for data integrity
+        const batch = writeBatch(db);
+        
         if (existing) {
-          const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', existing.id);
+          // Update existing item
+          const inventoryRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'inventory', existing.id);
           const quantityChange = mode === 'in' ? qty : -qty;
-          updateDoc(ref, { 
+          batch.update(inventoryRef, { 
             quantity: increment(quantityChange),
             lastUpdated: serverTimestamp()
-          }).catch(err => console.warn('Sync pending:', err.message));
-          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
-            type: mode, itemName: existing.name, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp(), isDeleted: false
-          }).catch(err => console.warn('Sync pending:', err.message));
+          });
+          
+          // Create transaction log
+          const logRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'));
+          batch.set(logRef, {
+            type: mode, 
+            itemName: existing.name, 
+            quantity: qty, 
+            user: userProfile?.name || 'Staff', 
+            timestamp: serverTimestamp(), 
+            isDeleted: false
+          });
         } else {
-          // Only for IN mode (OUT mode already checked above)
-          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'), {
-            name: localName, category: normalizeCategory('UNCATEGORIZED'), quantity: qty, minStock: 5, location: 'Receiving', notes: '', lastUpdated: serverTimestamp(), isDeleted: false
-          }).catch(err => console.warn('Sync pending:', err.message));
-          addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'), {
-            type: 'create', itemName: localName, quantity: qty, user: userProfile?.name || 'Staff', timestamp: serverTimestamp(), isDeleted: false
-          }).catch(err => console.warn('Sync pending:', err.message));
+          // Create new item (only for IN mode)
+          const inventoryRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'inventory'));
+          batch.set(inventoryRef, {
+            name: localName, 
+            category: normalizeCategory('UNCATEGORIZED'), 
+            quantity: qty, 
+            minStock: 5, 
+            location: 'Receiving', 
+            notes: '', 
+            lastUpdated: serverTimestamp(), 
+            isDeleted: false
+          });
+          
+          // Create log entry
+          const logRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'logs'));
+          batch.set(logRef, {
+            type: 'create', 
+            itemName: localName, 
+            quantity: qty, 
+            user: userProfile?.name || 'Staff', 
+            timestamp: serverTimestamp(), 
+            isDeleted: false
+          });
         }
+        
+        // Commit atomically (queues offline, replays on reconnect)
+        batch.commit().catch(err => console.warn('Sync pending:', err.message));
       } else {
         // Pure offline mode - use local storage
         if (existing) {
